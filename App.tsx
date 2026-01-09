@@ -6,7 +6,7 @@ import {
   Clock, ScanFace, CheckCircle, AlertCircle, PlaySquare, Image as ImageIcon, 
   Film, Save, Eye, Github, Linkedin, Network, Building, Zap, ArrowRight,
   TrendingUp, Globe, Smartphone, Laptop, Filter, Check, Camera, Upload,
-  ExternalLink, ChevronRight, Book, Award, MoreVertical, FileUp, FileStack, Link as LinkIcon, FolderPlus, PlusCircle, Settings, PieChart, Trash2, Sliders, Palette, Target, BarChart3, Globe2, ShieldCheck, UserCheck, Activity, RefreshCw, Radio, Database, Menu, Info, UserPlus, Power, Ban, MousePointerClick, Settings2, Users2, Trophy, Map as MapIcon, Video as VideoIcon
+  ExternalLink, ChevronRight, Book, Award, MoreVertical, FileUp, FileStack, Link as LinkIcon, FolderPlus, PlusCircle, Settings, PieChart, Trash2, Sliders, Palette, Target, BarChart3, Globe2, ShieldCheck, UserCheck, Activity, RefreshCw, Radio, Database, Menu, Info, UserPlus, Power, Ban, MousePointerClick, Settings2, Users2, Trophy, Map as MapIcon, Video as VideoIcon, Newspaper, XCircle, Share2
 } from 'lucide-react';
 import { User, UserRole, Video as VideoType, CampusBuilding, Course, CampusEvent, Job, NewsArticle, Applicant, Lecture, Module } from './types';
 import { NAV_ITEMS, MOCK_BUILDINGS, MOCK_COURSES, MOCK_VIDEOS, MOCK_EVENTS, MOCK_NEWS, MOCK_JOBS } from './constants';
@@ -18,8 +18,12 @@ const ThemeContext = React.createContext('brand');
 // --- Global State Persistence Hook ---
 const useSyncedState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
   const [state, setState] = useState<T>(() => {
-    const saved = localStorage.getItem(key);
-    return saved ? JSON.parse(saved) : defaultValue;
+    try {
+        const saved = localStorage.getItem(key);
+        return saved ? JSON.parse(saved) : defaultValue;
+    } catch (e) {
+        return defaultValue;
+    }
   });
 
   useEffect(() => {
@@ -46,7 +50,6 @@ const AuthView = ({ onLogin, logo, studentList, facultyList }: { onLogin: (user:
     const formData = new FormData(e.target as HTMLFormElement);
     const email = formData.get('email') as string;
     
-    // Hidden Admin Logic: Check specific email
     const isAdmin = email.toLowerCase() === 'admin@unistone.edu';
     const finalRole = isAdmin ? UserRole.ADMIN : role;
 
@@ -61,17 +64,15 @@ const AuthView = ({ onLogin, logo, studentList, facultyList }: { onLogin: (user:
               role: UserRole.ADMIN,
               department: 'Administration',
               xp: 0, streak: 0, attendance: 0,
-              status: 'Active'
+              status: 'Active',
+              image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=400'
            } as User;
       } else {
-          // Search in the appropriate list
           const list = finalRole === UserRole.FACULTY ? facultyList : studentList;
           foundUser = list.find(u => u.email.toLowerCase() === email.toLowerCase());
           
-          // Demo Fallback if user not found in list but valid structure
           if (!foundUser) {
-             // For demo purposes, create a user on the fly if not found in mock data
-             // In a real app, this would be an error or a signup flow
+             // Simulate DB lookup success for new emails in demo
              if (email.includes('@')) {
                  foundUser = {
                     id: finalRole === UserRole.FACULTY ? `FAC-${Math.floor(Math.random()*1000)}` : `STU-${Math.floor(Math.random()*1000)}`,
@@ -157,14 +158,160 @@ const AuthView = ({ onLogin, logo, studentList, facultyList }: { onLogin: (user:
   );
 };
 
-// ... [Keep ConnectHub, ProfileView, MapView components mostly identical, just ensuring imports match] ...
+// --- Module: Tech News Hub ---
+const TechNewsHub = ({ newsList }: { newsList: NewsArticle[] }) => {
+    const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null);
+    const theme = useContext(ThemeContext);
+
+    // Filter mainly tech/engineering news or just show all in reverse chronological
+    const displayNews = [...newsList].reverse();
+
+    return (
+        <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+                <div>
+                    <h2 className="text-5xl font-black uppercase leading-none tracking-tighter">Tech <span className={`text-${theme}-600`}>Hub</span></h2>
+                    <p className="text-slate-400 font-bold italic mt-3 text-sm tracking-widest uppercase">Latest Campus & Tech News</p>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {displayNews.map(news => (
+                    <div key={news.id} onClick={() => setSelectedArticle(news)} className="bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden group hover:shadow-2xl hover:border-slate-200 transition-all cursor-pointer">
+                        <div className="h-56 relative overflow-hidden">
+                            <img src={news.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={news.title} />
+                            <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-900">{news.category}</div>
+                        </div>
+                        <div className="p-8">
+                            <div className="flex items-center gap-3 mb-4 text-xs font-bold text-slate-400">
+                                <span>{news.source}</span>
+                                <span className="w-1 h-1 bg-slate-300 rounded-full"/>
+                                <span>{news.readTime}</span>
+                            </div>
+                            <h3 className="text-xl font-black text-slate-900 leading-tight mb-4 group-hover:text-blue-600 transition-colors">{news.title}</h3>
+                            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-slate-900 transition-colors">
+                                Read Article <ArrowRight size={14} />
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Reading Modal */}
+            {selectedArticle && (
+                <div className="fixed inset-0 z-[2000] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 lg:p-12 animate-in fade-in">
+                    <div className="bg-white w-full max-w-4xl h-full max-h-[90vh] rounded-[3rem] overflow-hidden relative flex flex-col animate-in zoom-in-95 duration-300">
+                        <div className="h-64 lg:h-80 relative shrink-0">
+                            <img src={selectedArticle.image} className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+                            <button onClick={() => setSelectedArticle(null)} className="absolute top-8 right-8 p-4 bg-white/20 backdrop-blur-md text-white rounded-full hover:bg-white/40 transition-all"><X size={24}/></button>
+                            <div className="absolute bottom-8 left-8 lg:left-12 max-w-2xl">
+                                <span className={`px-4 py-2 bg-${theme}-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest mb-4 inline-block`}>{selectedArticle.category}</span>
+                                <h2 className="text-3xl lg:text-5xl font-black text-white leading-none tracking-tight">{selectedArticle.title}</h2>
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-8 lg:p-12 custom-scrollbar">
+                            <div className="max-w-3xl mx-auto space-y-6">
+                                <div className="flex justify-between items-center border-b border-slate-100 pb-6">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center"><Newspaper size={24} className="text-slate-400"/></div>
+                                        <div>
+                                            <p className="font-bold text-slate-900">{selectedArticle.source}</p>
+                                            <p className="text-xs text-slate-500 font-medium">{selectedArticle.readTime} read</p>
+                                        </div>
+                                    </div>
+                                    <button className="p-3 rounded-xl bg-slate-50 text-slate-400 hover:text-blue-600 transition-all"><Share2 size={20}/></button>
+                                </div>
+                                <div className="prose prose-lg prose-slate max-w-none">
+                                    <p className="text-xl font-medium text-slate-600 leading-relaxed italic border-l-4 border-slate-200 pl-6 my-8">
+                                        {selectedArticle.content ? selectedArticle.content.substring(0, 150) : "No summary available."}...
+                                    </p>
+                                    <p className="text-slate-800 leading-loose">
+                                        {selectedArticle.content || "Full article content is not available in this demo. Imagine a comprehensive, well-researched article about the topic displayed here, providing students and faculty with the latest insights from the technology world."}
+                                    </p>
+                                    <p className="text-slate-800 leading-loose mt-4">
+                                        Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
+                                    </p>
+                                    <h4 className="text-2xl font-black text-slate-900 mt-8 mb-4">Key Takeaways</h4>
+                                    <ul className="space-y-3">
+                                        <li className="flex gap-3 items-start"><CheckCircle className={`text-${theme}-600 shrink-0 mt-1`} size={20}/><span className="text-slate-700">Impact on future campus infrastructure.</span></li>
+                                        <li className="flex gap-3 items-start"><CheckCircle className={`text-${theme}-600 shrink-0 mt-1`} size={20}/><span className="text-slate-700">New opportunities for student research.</span></li>
+                                        <li className="flex gap-3 items-start"><CheckCircle className={`text-${theme}-600 shrink-0 mt-1`} size={20}/><span className="text-slate-700">Integration with existing Unistone systems.</span></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// --- Module: Academic Hub (Courses) ---
+const AcademicHub = ({ courses }: { courses: Course[] }) => {
+    const theme = useContext(ThemeContext);
+    
+    return (
+        <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+             <div>
+                <h2 className="text-5xl font-black uppercase leading-none tracking-tighter">Academic <span className={`text-${theme}-600`}>Hub</span></h2>
+                <p className="text-slate-400 font-bold italic mt-3 text-sm tracking-widest uppercase">Your Curriculum & Resources</p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {courses.map(course => (
+                    <div key={course.id} className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-xl transition-all group">
+                         <div className="flex justify-between items-start mb-6">
+                             <div>
+                                 <span className={`px-4 py-2 bg-${theme}-50 text-${theme}-600 rounded-xl text-[10px] font-black uppercase tracking-widest border border-${theme}-100`}>{course.code}</span>
+                                 <h3 className="text-3xl font-black text-slate-900 mt-4 leading-none">{course.name}</h3>
+                             </div>
+                             <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-slate-900 group-hover:text-white transition-all">
+                                 <BookOpen size={28}/>
+                             </div>
+                         </div>
+                         <p className="text-slate-500 font-medium mb-8 line-clamp-2">{course.description}</p>
+                         
+                         <div className="space-y-4">
+                             {course.modules?.slice(0, 2).map((module, idx) => (
+                                 <div key={idx} className="p-4 bg-slate-50 rounded-2xl flex items-center justify-between">
+                                     <div className="flex items-center gap-4">
+                                         <div className={`w-8 h-8 rounded-full bg-${theme}-100 flex items-center justify-center text-${theme}-600 font-bold text-xs`}>{idx + 1}</div>
+                                         <span className="font-bold text-slate-700 text-sm">{module.title}</span>
+                                     </div>
+                                     <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{module.lectures?.length || 0} Lectures</span>
+                                 </div>
+                             ))}
+                         </div>
+
+                         <div className="mt-8 pt-8 border-t border-slate-50 flex items-center justify-between">
+                             <div className="flex items-center gap-3">
+                                 <div className="w-10 h-10 rounded-full bg-slate-100 overflow-hidden">
+                                     {course.instructorImage ? <img src={course.instructorImage} className="w-full h-full object-cover"/> : <UserIcon className="p-2 w-full h-full"/>}
+                                 </div>
+                                 <div>
+                                     <p className="text-xs font-black uppercase text-slate-400 tracking-widest">Instructor</p>
+                                     <p className="font-bold text-slate-900 text-sm">{course.instructor}</p>
+                                 </div>
+                             </div>
+                             <button className="px-6 py-3 bg-slate-900 text-white rounded-xl font-black uppercase text-[10px] tracking-widest hover:scale-105 transition-all">View Course</button>
+                         </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
 
 // --- Module: Connect Hub ---
 const ConnectHub = ({ facultyList, studentList }: any) => {
   const [tab, setTab] = useState<'faculty' | 'community'>('faculty');
   const [search, setSearch] = useState('');
-  const [selectedFaculty, setSelectedFaculty] = useState<any>(null);
+  const [selectedProfile, setSelectedProfile] = useState<any>(null);
   const theme = useContext(ThemeContext);
+
+  const displayList = tab === 'faculty' ? facultyList : studentList;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
@@ -174,8 +321,8 @@ const ConnectHub = ({ facultyList, studentList }: any) => {
            <p className="text-slate-400 font-bold italic mt-3 text-sm tracking-widest uppercase">Peer-to-Peer Directory</p>
         </div>
         <div className="flex gap-2 bg-white p-2 rounded-[1.5rem] border border-slate-100 shadow-sm">
-           <button onClick={() => setTab('faculty')} className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase transition-all ${tab === 'faculty' ? `bg-${theme}-600 text-white shadow-lg shadow-${theme}-500/20` : 'text-slate-400 hover:bg-slate-50'}`}>Faculty Directory</button>
-           <button onClick={() => setTab('community')} className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase transition-all ${tab === 'community' ? `bg-${theme}-600 text-white shadow-lg shadow-${theme}-500/20` : 'text-slate-400 hover:bg-slate-50'}`}>Student Directory</button>
+           <button onClick={() => setTab('faculty')} className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase transition-all ${tab === 'faculty' ? `bg-${theme}-600 text-white shadow-lg shadow-${theme}-500/20` : 'text-slate-400 hover:bg-slate-50'}`}>Faculty</button>
+           <button onClick={() => setTab('community')} className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase transition-all ${tab === 'community' ? `bg-${theme}-600 text-white shadow-lg shadow-${theme}-500/20` : 'text-slate-400 hover:bg-slate-50'}`}>Students</button>
         </div>
       </div>
 
@@ -185,10 +332,10 @@ const ConnectHub = ({ facultyList, studentList }: any) => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {(tab === 'faculty' ? facultyList : studentList).filter((item: any) => item.name.toLowerCase().includes(search.toLowerCase()) && item.status !== 'Suspended').map((item: any) => (
+        {displayList.filter((item: any) => item.name.toLowerCase().includes(search.toLowerCase()) && item.status !== 'Suspended').map((item: any) => (
           <div 
             key={item.id} 
-            onClick={() => tab === 'faculty' && setSelectedFaculty(item)}
+            onClick={() => setSelectedProfile(item)}
             className={`bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm group hover:border-${theme}-200 transition-all hover:shadow-2xl cursor-pointer`}
           >
              <div className="flex items-center gap-6 mb-8">
@@ -207,33 +354,32 @@ const ConnectHub = ({ facultyList, studentList }: any) => {
              </div>
              <div className="space-y-4 pt-8 border-t border-slate-50">
                 <button className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-black transition-all active:scale-95 shadow-xl">Contact</button>
-                <button className="w-full py-4 bg-slate-50 text-slate-400 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-100 transition-all">View Profile</button>
              </div>
           </div>
         ))}
       </div>
 
-      {/* Faculty Profile Modal Overlay */}
-      {selectedFaculty && (
+      {/* Generic Profile Modal Overlay */}
+      {selectedProfile && (
         <div className="fixed inset-0 z-[2000] bg-black/60 backdrop-blur-xl flex items-center justify-center p-8 animate-in fade-in duration-500">
            <div className={`bg-white w-full max-w-2xl rounded-[5rem] overflow-hidden shadow-5xl border-[8px] border-${theme}-50 animate-in zoom-in-95 duration-500`}>
               <div className={`h-48 bg-gradient-to-r from-${theme}-600 to-${theme}-500 relative`}>
-                 <button onClick={() => setSelectedFaculty(null)} className="absolute top-10 right-10 p-4 bg-white/20 backdrop-blur-md text-white rounded-3xl hover:bg-white/40 transition-all"><X size={24}/></button>
+                 <button onClick={() => setSelectedProfile(null)} className="absolute top-10 right-10 p-4 bg-white/20 backdrop-blur-md text-white rounded-3xl hover:bg-white/40 transition-all"><X size={24}/></button>
                  <div className="absolute -bottom-16 left-16">
-                    {selectedFaculty.image ? (
-                        <img src={selectedFaculty.image} className="w-40 h-40 rounded-[3.5rem] bg-white border-[8px] border-white shadow-3xl object-cover" />
+                    {selectedProfile.image ? (
+                        <img src={selectedProfile.image} className="w-40 h-40 rounded-[3.5rem] bg-white border-[8px] border-white shadow-3xl object-cover" />
                     ) : (
                         <div className={`w-40 h-40 rounded-[3.5rem] bg-white border-[8px] border-white shadow-3xl flex items-center justify-center font-black text-6xl text-${theme}-600 uppercase`}>
-                        {selectedFaculty.name[0]}
+                        {selectedProfile.name[0]}
                         </div>
                     )}
                  </div>
               </div>
               <div className="p-20 pt-24 space-y-12 max-h-[70vh] overflow-y-auto custom-scrollbar no-scrollbar">
                  <div className="space-y-4">
-                    <h3 className="text-5xl font-black text-slate-900 tracking-tighter uppercase leading-none">{selectedFaculty.name}</h3>
-                    <p className={`text-xl font-bold text-${theme}-600 uppercase tracking-widest`}>{selectedFaculty.role} • {selectedFaculty.block}</p>
-                    <p className="text-slate-500 font-medium italic text-lg leading-relaxed">{selectedFaculty.bio}</p>
+                    <h3 className="text-5xl font-black text-slate-900 tracking-tighter uppercase leading-none">{selectedProfile.name}</h3>
+                    <p className={`text-xl font-bold text-${theme}-600 uppercase tracking-widest`}>{selectedProfile.role} • {selectedProfile.department}</p>
+                    <p className="text-slate-500 font-medium italic text-lg leading-relaxed">{selectedProfile.bio || "No bio available."}</p>
                  </div>
                  <div className="space-y-8 pt-10 border-t border-slate-50">
                     <h4 className="text-[12px] font-black text-slate-400 uppercase tracking-widest">Contact Information</h4>
@@ -251,16 +397,18 @@ const ConnectHub = ({ facultyList, studentList }: any) => {
   );
 };
 
-// --- Module: Profile View ---
-const ProfileView = ({ user, setUser, studentList, setStudentList }: any) => {
+// --- Module: Profile View (Editable & Synced) ---
+const ProfileView = ({ user, setUser, updateGlobalUser }: { user: User, setUser: any, updateGlobalUser: (u: User) => void }) => {
   const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState<User>({ ...user, projects: user.projects || [] });
+  const [formData, setFormData] = useState<User>({ ...user });
   const [newSkill, setNewSkill] = useState('');
   const theme = useContext(ThemeContext);
 
   const saveProfile = () => {
+    // 1. Update Local Session
     setUser(formData);
-    setStudentList(studentList.map((s: any) => s.id === user.id ? { ...s, name: formData.name, department: formData.department, image: formData.image } : s));
+    // 2. Update Global Database (StudentList/FacultyList)
+    updateGlobalUser(formData);
     setEditing(false);
   };
 
@@ -289,7 +437,7 @@ const ProfileView = ({ user, setUser, studentList, setStudentList }: any) => {
     <div className="max-w-5xl mx-auto space-y-12 animate-in fade-in duration-500 pb-20">
       <div className="bg-white rounded-[4rem] border border-slate-100 shadow-2xl overflow-hidden">
          <div className="h-64 relative">
-             <img src={formData.coverImage} className="w-full h-full object-cover" alt="Cover" />
+             <img src={formData.coverImage || "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&q=80&w=1200"} className="w-full h-full object-cover" alt="Cover" />
              {editing && (
                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                     <label className="cursor-pointer bg-white/20 backdrop-blur-md border border-white px-6 py-3 rounded-2xl text-white font-bold uppercase tracking-widest flex items-center gap-3 hover:bg-white/30 transition-all">
@@ -326,16 +474,8 @@ const ProfileView = ({ user, setUser, studentList, setStudentList }: any) => {
                           <input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className={`w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold outline-none focus:border-${theme}-500 transition-all shadow-inner`} />
                        </div>
                        <div className="space-y-2">
-                           <label className="text-[10px] font-black text-slate-400 uppercase ml-3 tracking-widest">Github URL</label>
-                           <input value={formData.githubUrl} onChange={e => setFormData({...formData, githubUrl: e.target.value})} className={`w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold outline-none focus:border-${theme}-500 transition-all shadow-inner`} />
-                       </div>
-                       <div className="space-y-2">
-                           <label className="text-[10px] font-black text-slate-400 uppercase ml-3 tracking-widest">LinkedIn URL</label>
-                           <input value={formData.linkedinUrl} onChange={e => setFormData({...formData, linkedinUrl: e.target.value})} className={`w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold outline-none focus:border-${theme}-500 transition-all shadow-inner`} />
-                       </div>
-                       <div className="space-y-2">
                           <label className="text-[10px] font-black text-slate-400 uppercase ml-3 tracking-widest">Bio</label>
-                          <textarea value={formData.bio} onChange={e => setFormData({...formData, bio: e.target.value})} className={`w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-medium text-sm h-32 outline-none focus:border-${theme}-500 transition-all shadow-inner resize-none`} />
+                          <textarea value={formData.bio || ''} onChange={e => setFormData({...formData, bio: e.target.value})} className={`w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-medium text-sm h-32 outline-none focus:border-${theme}-500 transition-all shadow-inner resize-none`} />
                        </div>
                     </div>
                   ) : (
@@ -348,10 +488,6 @@ const ProfileView = ({ user, setUser, studentList, setStudentList }: any) => {
                           </div>
                        </div>
                        <p className="text-slate-500 font-medium italic text-lg leading-relaxed">{formData.bio || 'No bio available.'}</p>
-                       <div className="flex flex-wrap gap-3">
-                          {formData.githubUrl && <a href={formData.githubUrl} target="_blank" rel="noopener noreferrer" className={`p-4 bg-slate-50 rounded-2xl text-slate-400 hover:text-${theme}-600 transition-all`}><Github size={20}/></a>}
-                          {formData.linkedinUrl && <a href={formData.linkedinUrl} target="_blank" rel="noopener noreferrer" className={`p-4 bg-slate-50 rounded-2xl text-slate-400 hover:text-${theme}-600 transition-all`}><Linkedin size={20}/></a>}
-                       </div>
                     </div>
                   )}
                </div>
@@ -414,8 +550,8 @@ const ProfileView = ({ user, setUser, studentList, setStudentList }: any) => {
   );
 };
 
-// --- Sub-Module: Map View ---
-const MapView = ({ buildings }: any) => {
+// --- Sub-Module: Map View (Editable by Admin) ---
+const MapView = ({ buildings, onUpdateBuilding }: { buildings: CampusBuilding[], onUpdateBuilding?: (b: CampusBuilding) => void }) => {
   const [selected, setSelected] = useState<any>(null);
   const theme = useContext(ThemeContext);
 
@@ -488,7 +624,7 @@ const MapView = ({ buildings }: any) => {
   );
 };
 
-// --- Admin Dashboard ---
+// --- Admin Dashboard (Synced) ---
 const AdminDashboard = ({ 
   studentList, setStudentList, 
   facultyList, setFacultyList, 
@@ -583,8 +719,16 @@ const AdminDashboard = ({
       const id = Math.random().toString(36).substr(2, 9);
       if (type === 'event') setEvents([...events, { ...newItem, id, registeredCount: 0 }]);
       if (type === 'job') setJobs([...jobs, { ...newItem, id, applicants: [] }]);
-      if (type === 'news') setNewsList([...newsList, { ...newItem, id, date: 'Just now' }]);
-      if (type === 'course') setCourses([...courses, { ...newItem, id, enrolledStudents: [] }]);
+      if (type === 'news') setNewsList([...newsList, { 
+          ...newItem, 
+          id, 
+          date: 'Just now', 
+          readTime: '3 min',
+          category: newItem.category || 'Tech',
+          image: newItem.image || 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=800&h=400&fit=crop',
+          source: 'Admin'
+        }]);
+      if (type === 'course') setCourses([...courses, { ...newItem, id, enrolledStudents: [], modules: [] }]);
       setNewItem({});
     };
 
@@ -698,8 +842,18 @@ const AdminDashboard = ({
                     
                     <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 grid grid-cols-1 md:grid-cols-4 gap-4">
                         <input placeholder="Title / Headline" className="p-3 rounded-xl border border-slate-200 outline-none text-sm font-bold" onChange={e => setNewItem({...newItem, title: e.target.value})} value={newItem.title || ''}/>
-                        <input placeholder="Description / Subtitle" className="p-3 rounded-xl border border-slate-200 outline-none text-sm font-medium" onChange={e => setNewItem({...newItem, description: e.target.value, summary: e.target.value})} value={newItem.description || newItem.summary || ''}/>
-                        {contentTab !== 'news' && <input placeholder="Location / Company" className="p-3 rounded-xl border border-slate-200 outline-none text-sm font-medium" onChange={e => setNewItem({...newItem, location: e.target.value, company: e.target.value})} value={newItem.location || newItem.company || ''}/>}
+                        
+                        {contentTab === 'news' ? (
+                            <>
+                                <input placeholder="Content / Summary" className="p-3 rounded-xl border border-slate-200 outline-none text-sm font-medium" onChange={e => setNewItem({...newItem, content: e.target.value})} value={newItem.content || ''}/>
+                                <input placeholder="Category (e.g. Tech)" className="p-3 rounded-xl border border-slate-200 outline-none text-sm font-medium" onChange={e => setNewItem({...newItem, category: e.target.value})} value={newItem.category || ''}/>
+                            </>
+                        ) : (
+                            <>
+                                <input placeholder="Description" className="p-3 rounded-xl border border-slate-200 outline-none text-sm font-medium" onChange={e => setNewItem({...newItem, description: e.target.value})} value={newItem.description || ''}/>
+                                <input placeholder="Location / Company" className="p-3 rounded-xl border border-slate-200 outline-none text-sm font-medium" onChange={e => setNewItem({...newItem, location: e.target.value, company: e.target.value})} value={newItem.location || newItem.company || ''}/>
+                            </>
+                        )}
                         <button onClick={() => addItem(contentTab === 'events' ? 'event' : contentTab === 'jobs' ? 'job' : 'news')} className="bg-slate-900 text-white rounded-xl font-black uppercase text-xs">Add {contentTab}</button>
                     </div>
 
@@ -738,6 +892,7 @@ const AdminDashboard = ({
                 </div>
             )}
 
+            {/* Reports and Settings sections remain... */}
             {activeSection === 'reports' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm">
@@ -758,7 +913,7 @@ const AdminDashboard = ({
                 </div>
             )}
 
-            {activeSection === 'settings' && (
+             {activeSection === 'settings' && (
                 <div className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-sm space-y-12">
                     <div className="space-y-6">
                         <h3 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3"><Palette size={24}/> Theme Customization</h3>
@@ -780,43 +935,6 @@ const AdminDashboard = ({
                                 <div className="w-20 h-20 bg-slate-50 rounded-2xl p-2 border border-slate-100"><img src={logo} className="w-full h-full object-contain"/></div>
                                 <input value={logo} onChange={e => setLogo(e.target.value)} className="flex-1 bg-slate-50 rounded-2xl px-6 font-bold text-sm outline-none border border-slate-100 focus:border-slate-300" />
                             </div>
-                        </div>
-                    </div>
-                    <div className="space-y-6 pt-10 border-t border-slate-50">
-                        <h3 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3"><Settings2 size={24}/> System Controls</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                             <div className={`p-8 rounded-[2.5rem] border transition-all cursor-pointer ${maintenanceMode ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-100'}`} onClick={() => setMaintenanceMode(!maintenanceMode)}>
-                                 <div className="flex justify-between items-start mb-4">
-                                     <ShieldAlert size={32} className={maintenanceMode ? 'text-red-500' : 'text-slate-300'}/>
-                                     <div className={`w-12 h-7 rounded-full p-1 transition-colors ${maintenanceMode ? 'bg-red-500' : 'bg-slate-300'}`}>
-                                         <div className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform ${maintenanceMode ? 'translate-x-5' : ''}`} />
-                                     </div>
-                                 </div>
-                                 <h4 className="text-lg font-black text-slate-900">Maintenance Mode</h4>
-                                 <p className="text-xs font-bold text-slate-400 mt-2">Disable access for all non-admin users.</p>
-                             </div>
-
-                             <div className={`p-8 rounded-[2.5rem] border transition-all cursor-pointer ${registrationOpen ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-100'}`} onClick={() => setRegistrationOpen(!registrationOpen)}>
-                                 <div className="flex justify-between items-start mb-4">
-                                     <UserPlus size={32} className={registrationOpen ? 'text-emerald-500' : 'text-slate-300'}/>
-                                     <div className={`w-12 h-7 rounded-full p-1 transition-colors ${registrationOpen ? 'bg-emerald-500' : 'bg-slate-300'}`}>
-                                         <div className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform ${registrationOpen ? 'translate-x-5' : ''}`} />
-                                     </div>
-                                 </div>
-                                 <h4 className="text-lg font-black text-slate-900">Student Registration</h4>
-                                 <p className="text-xs font-bold text-slate-400 mt-2">Allow new student sign-ups.</p>
-                             </div>
-
-                             <div className={`p-8 rounded-[2.5rem] border transition-all cursor-pointer ${guestAccess ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-slate-100'}`} onClick={() => setGuestAccess(!guestAccess)}>
-                                 <div className="flex justify-between items-start mb-4">
-                                     <Globe size={32} className={guestAccess ? 'text-blue-500' : 'text-slate-300'}/>
-                                     <div className={`w-12 h-7 rounded-full p-1 transition-colors ${guestAccess ? 'bg-blue-500' : 'bg-slate-300'}`}>
-                                         <div className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform ${guestAccess ? 'translate-x-5' : ''}`} />
-                                     </div>
-                                 </div>
-                                 <h4 className="text-lg font-black text-slate-900">Guest Access</h4>
-                                 <p className="text-xs font-bold text-slate-400 mt-2">Public view of events and news.</p>
-                             </div>
                         </div>
                     </div>
                 </div>
@@ -908,18 +1026,17 @@ const Sidebar = ({ activeTab, setActiveTab, user, onLogout, logo, theme }: any) 
         { id: 'admin-dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
       ];
     }
-    if (user.role === UserRole.FACULTY) {
-      return [
-        { id: 'faculty-dashboard', label: 'Overview', icon: <LayoutDashboard size={20} /> },
-        { id: 'edustone', label: 'My Courses', icon: <BookOpen size={20} /> },
-        { id: 'attendance', label: 'Attendance', icon: <ScanFace size={20} /> },
-        { id: 'placements', label: 'Placements', icon: <BriefcaseIcon size={20} /> },
+    // Shared Student/Faculty Items, slightly modified
+    const common = [
+        { id: 'dashboard', label: 'Overview', icon: <LayoutDashboard size={20} /> },
         { id: 'navigation', label: 'Campus Map', icon: <MapIcon size={20} /> },
-        { id: 'videohub', label: 'Video Hub', icon: <VideoIcon size={20} /> },
+        { id: 'academic', label: 'Academic Hub', icon: <BookOpen size={20} /> },
+        { id: 'technews', label: 'Tech News', icon: <Newspaper size={20} /> },
+        { id: 'comms', label: 'Connect', icon: <MessageSquare size={20} /> },
         { id: 'profile', label: 'My Profile', icon: <UserIcon size={20} /> },
-      ];
-    }
-    return NAV_ITEMS;
+    ];
+    
+    return common;
   }, [user.role]);
 
   return (
@@ -971,13 +1088,16 @@ const Sidebar = ({ activeTab, setActiveTab, user, onLogout, logo, theme }: any) 
 // --- Main Hub Controller ---
 export function App() {
   const [user, setUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('unistone-user');
-    return saved ? JSON.parse(saved) : null;
+    try {
+        const saved = localStorage.getItem('unistone-user');
+        return saved ? JSON.parse(saved) : null;
+    } catch(e) { return null; }
   });
 
   const [logo, setLogo] = useSyncedState('unistone-logo', 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ4pVMdWwEh3mqNQA2xeeDw4PLheK36bs5GZw&s');
   const [themeColor, setThemeColor] = useSyncedState('unistone-theme', 'brand');
   
+  // GLOBAL STATE - Source of Truth
   const [buildings, setBuildings] = useSyncedState('unistone-buildings', MOCK_BUILDINGS);
   const [courses, setCourses] = useSyncedState('unistone-courses', MOCK_COURSES);
   const [facultyList, setFacultyList] = useSyncedState<User[]>('unistone-faculty', [
@@ -1026,21 +1146,25 @@ export function App() {
 
   useEffect(() => {
     if (user) {
-      if (user.role === UserRole.FACULTY) setActiveTab('faculty-dashboard');
-      else if (user.role === UserRole.ADMIN) setActiveTab('admin-dashboard');
+      if (user.role === UserRole.ADMIN) setActiveTab('admin-dashboard');
       else setActiveTab('dashboard');
     }
   }, [user]);
 
-  const theme = themeColor; // Alias for cleaner usage in JSX
+  // Sync profile edits back to main lists
+  const updateGlobalUser = (updatedUser: User) => {
+      if (updatedUser.role === UserRole.FACULTY) {
+          setFacultyList(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+      } else {
+          setStudentList(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+      }
+  };
+
+  const theme = themeColor; 
 
   if (!user) return <AuthView onLogin={setUser} logo={logo} studentList={studentList} facultyList={facultyList} />;
 
   const renderContent = () => {
-    if (activeTab === 'navigation') return <MapView buildings={buildings} facultyList={facultyList} />;
-    if (activeTab === 'profile') return <ProfileView user={user} setUser={setUser} studentList={studentList} setStudentList={setStudentList} />;
-    if (activeTab === 'comms') return <ConnectHub facultyList={facultyList} studentList={studentList} />;
-    
     // Admin View
     if (user.role === UserRole.ADMIN) {
       return (
@@ -1058,13 +1182,20 @@ export function App() {
       );
     }
 
-    // Student Dashboard (Simplified for Theme injection)
-    if (user.role === UserRole.STUDENT && activeTab === 'dashboard') {
+    // Shared Views
+    if (activeTab === 'navigation') return <MapView buildings={buildings} />;
+    if (activeTab === 'profile') return <ProfileView user={user} setUser={setUser} updateGlobalUser={updateGlobalUser} />;
+    if (activeTab === 'comms') return <ConnectHub facultyList={facultyList} studentList={studentList} />;
+    if (activeTab === 'technews') return <TechNewsHub newsList={newsList} />;
+    if (activeTab === 'academic') return <AcademicHub courses={courses} />;
+
+    // Student/Faculty Dashboard
+    if (activeTab === 'dashboard') {
         return (
             <div className="space-y-16 animate-in fade-in duration-500 pb-20">
                <header className="flex justify-between items-end">
                   <div>
-                     <h2 className="text-6xl font-black uppercase tracking-tighter leading-none">Student <span className={`text-${theme}-600`}>Feed</span></h2>
+                     <h2 className="text-6xl font-black uppercase tracking-tighter leading-none">{user.role} <span className={`text-${theme}-600`}>Feed</span></h2>
                      <p className="text-slate-500 font-medium italic mt-5 text-xl tracking-tight leading-relaxed max-w-xl">Welcome back, {user.name}.</p>
                   </div>
                   <div className="flex gap-4">
@@ -1073,8 +1204,39 @@ export function App() {
                      <div className="px-8 py-5 bg-white rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-2xl transition-all"><ScanFace className="text-emerald-500" size={32}/><div className="leading-none"><p className="text-2xl font-black">{user.attendance}%</p><p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mt-1">Attn</p></div></div>
                   </div>
                </header>
-               <div className="p-10 bg-white rounded-[3rem] border border-slate-100 text-center">
-                    <p className="text-slate-400 font-bold italic">Dashboard widgets loaded...</p>
+
+               {/* Dynamic Events from Admin */}
+               <div className="space-y-6">
+                    <h3 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">Upcoming Events</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {events.slice(0,3).map((e: CampusEvent) => (
+                             <div key={e.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 group hover:shadow-xl transition-all">
+                                 <div className="h-40 rounded-2xl overflow-hidden mb-4 relative">
+                                     <img src={e.image} className="w-full h-full object-cover" />
+                                     <div className="absolute top-2 right-2 bg-white px-3 py-1 rounded-lg text-[10px] font-black uppercase">{e.date}</div>
+                                 </div>
+                                 <h4 className="text-lg font-black leading-none">{e.title}</h4>
+                                 <p className="text-xs text-slate-400 font-bold mt-2">{e.location}</p>
+                             </div>
+                        ))}
+                    </div>
+               </div>
+
+               {/* Dynamic Tech News from Admin */}
+               <div className="space-y-6">
+                    <h3 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">Recent News</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {newsList.slice(0,2).map((n: NewsArticle) => (
+                            <div key={n.id} onClick={() => setActiveTab('technews')} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex gap-4 cursor-pointer hover:border-slate-300 transition-all">
+                                <img src={n.image} className="w-24 h-24 rounded-2xl object-cover" />
+                                <div>
+                                    <span className="text-[10px] font-black uppercase text-blue-600">{n.category}</span>
+                                    <h4 className="text-lg font-black leading-tight mt-1 mb-2">{n.title}</h4>
+                                    <span className="text-xs text-slate-400 font-bold">Read Article -></span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                </div>
             </div>
         )
@@ -1098,21 +1260,103 @@ export function App() {
         <main className="md:ml-72 p-6 md:p-14 h-screen flex flex-col overflow-hidden relative">
             <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 custom-scrollbar no-scrollbar scroll-smooth">{renderContent()}</div>
         </main>
-        <AIAssistant /> {/* Assistant logic remains same, just assumed present or imported */}
+        <AIAssistant />
         </div>
     </ThemeContext.Provider>
   );
 }
 
-// Re-including simplified AIAssistant and AttendancePopup to ensure no undefined component errors
 const AIAssistant = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState<{role: 'user' | 'ai', text: string}[]>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
   const theme = useContext(ThemeContext);
-  // ... simplified logic for display ...
+  const messagesEndRef = React.useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isOpen]);
+
+  const handleSend = async () => {
+    if (!input.trim() || loading) return;
+    const userMsg = input;
+    setInput('');
+    setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+    setLoading(true);
+
+    try {
+      const response = await askUnistoneAI(userMsg);
+      setMessages(prev => [...prev, { role: 'ai', text: response }]);
+    } catch (e) {
+      setMessages(prev => [...prev, { role: 'ai', text: "Sorry, I encountered an error." }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <button onClick={() => setIsOpen(!isOpen)} className={`fixed bottom-10 right-10 p-5 bg-slate-900 text-white rounded-[2rem] shadow-2xl hover:scale-110 transition-all z-[1000] border-4 border-white`}>
-        {isOpen ? <X size={32} /> : <Bot size={32} />}
-    </button>
+    <>
+      {isOpen && (
+        <div className="fixed bottom-32 right-10 w-96 h-[500px] bg-white rounded-[2rem] shadow-2xl border border-slate-100 z-[1000] flex flex-col overflow-hidden animate-in slide-in-from-bottom-10 fade-in duration-300">
+          <div className={`p-6 bg-${theme}-600 text-white flex items-center gap-4`}>
+             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-md">
+                <Bot size={24} />
+             </div>
+             <div>
+                <h4 className="font-black uppercase tracking-tight text-lg leading-none">Unistone AI</h4>
+                <p className="text-[10px] font-bold uppercase tracking-widest opacity-80 mt-1">Campus Assistant</p>
+             </div>
+          </div>
+          <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50 custom-scrollbar">
+             {messages.length === 0 && (
+                <div className="text-center text-slate-400 mt-10">
+                   <Bot size={48} className="mx-auto mb-4 opacity-20"/>
+                   <p className="text-sm font-bold">Ask me anything about Unistone University!</p>
+                </div>
+             )}
+             {messages.map((m, i) => (
+               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[80%] p-4 rounded-2xl text-sm font-medium leading-relaxed ${m.role === 'user' ? `bg-${theme}-600 text-white rounded-br-none` : 'bg-white text-slate-700 shadow-sm border border-slate-100 rounded-bl-none'}`}>
+                     {m.text}
+                  </div>
+               </div>
+             ))}
+             {loading && (
+                <div className="flex justify-start">
+                   <div className="bg-white px-4 py-3 rounded-2xl rounded-bl-none shadow-sm border border-slate-100 flex gap-1">
+                      <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{animationDelay: '0ms'}}/>
+                      <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{animationDelay: '150ms'}}/>
+                      <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{animationDelay: '300ms'}}/>
+                   </div>
+                </div>
+             )}
+             <div ref={messagesEndRef} />
+          </div>
+          <div className="p-4 bg-white border-t border-slate-100">
+             <div className="relative">
+                <input 
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSend()}
+                  placeholder="Type your message..."
+                  className="w-full pl-6 pr-14 py-4 bg-slate-50 rounded-2xl font-bold text-sm outline-none focus:bg-white focus:shadow-inner transition-all border border-transparent focus:border-slate-200"
+                />
+                <button onClick={handleSend} disabled={loading} className={`absolute right-2 top-2 p-2 bg-${theme}-600 text-white rounded-xl hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100`}>
+                   <Send size={20} />
+                </button>
+             </div>
+          </div>
+        </div>
+      )}
+      <button onClick={() => setIsOpen(!isOpen)} className={`fixed bottom-10 right-10 p-5 bg-slate-900 text-white rounded-[2rem] shadow-2xl hover:scale-110 transition-all z-[1000] border-4 border-white group`}>
+          {isOpen ? <X size={32} /> : <Bot size={32} className="group-hover:animate-bounce"/>}
+      </button>
+    </>
   );
 };
 
