@@ -70,7 +70,19 @@ const AuthView = ({ onLogin, logo, studentList, facultyList }: { onLogin: (user:
   const [role, setRole] = useState<UserRole>(UserRole.STUDENT);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [emailInput, setEmailInput] = useState('');
+  const [isAdminMode, setIsAdminMode] = useState(false);
   const theme = 'brand'; 
+
+  // Check for Magic Link (?mode=admin)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('mode') === 'admin') {
+      setIsAdminMode(true);
+      setRole(UserRole.ADMIN);
+      setEmailInput('admin@unistone.edu');
+    }
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,19 +156,36 @@ const AuthView = ({ onLogin, logo, studentList, facultyList }: { onLogin: (user:
               {logo.length > 5 ? <img src={logo} alt="Logo" className="w-full h-full object-contain p-1" /> : <span className={`font-black italic text-3xl text-${theme}-600`}>{logo}</span>}
             </div>
             <h1 className="text-3xl md:text-5xl font-black tracking-tighter mb-4 uppercase">UNISTONE</h1>
-            <p className={`text-${theme}-100 text-sm md:text-lg font-medium leading-relaxed opacity-90 tracking-tight`}>Your Complete Digital Campus Ecosystem</p>
+            <p className={`text-${theme}-100 text-sm md:text-lg font-medium leading-relaxed opacity-90 tracking-tight`}>
+              {isAdminMode ? 'Restricted Admin Access Console' : 'Your Complete Digital Campus Ecosystem'}
+            </p>
           </div>
           <div className="space-y-4 mt-8 md:mt-0">
-             <div className="p-4 md:p-5 bg-white/10 rounded-[1.5rem] backdrop-blur-md border border-white/20">
-                <p className="text-[10px] font-black uppercase tracking-widest text-white/80 mb-2">Admin Access</p>
-                <p className="text-xs font-bold text-white select-all">Email: admin@unistone.edu</p>
-             </div>
+             {!isAdminMode && (
+               <div className="p-4 md:p-5 bg-white/10 rounded-[1.5rem] backdrop-blur-md border border-white/20">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-white/80 mb-2">Admin Access</p>
+                  <p className="text-xs font-bold text-white select-all">Email: admin@unistone.edu</p>
+               </div>
+             )}
+             {isAdminMode && (
+               <div className="p-4 md:p-5 bg-white/10 rounded-[1.5rem] backdrop-blur-md border border-white/20 flex items-center gap-3">
+                  <ShieldCheck size={20} className="text-white"/>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-white/80">Secure Connection</p>
+                    <p className="text-xs font-bold text-white">Admin Mode Active</p>
+                  </div>
+               </div>
+             )}
           </div>
         </div>
         <div className="md:w-1/2 p-8 md:p-12 flex flex-col justify-center bg-white relative">
           <div className="mb-8 md:mb-10">
-            <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight leading-none mb-3 uppercase">Welcome Back</h2>
-            <p className="text-slate-500 font-medium text-sm md:text-base">Select your role to continue.</p>
+            <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight leading-none mb-3 uppercase">
+              {isAdminMode ? 'Admin Login' : 'Welcome Back'}
+            </h2>
+            <p className="text-slate-500 font-medium text-sm md:text-base">
+              {isAdminMode ? 'Enter credentials to manage campus.' : 'Select your role to continue.'}
+            </p>
           </div>
           {error && (
               <div className="mb-6 p-4 bg-red-50 text-red-500 rounded-2xl text-xs font-bold flex items-center gap-2 border border-red-100">
@@ -164,18 +193,28 @@ const AuthView = ({ onLogin, logo, studentList, facultyList }: { onLogin: (user:
               </div>
           )}
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="grid grid-cols-2 gap-3 mb-8">
-              <button type="button" onClick={() => setRole(UserRole.STUDENT)} className={`py-3 md:py-4 rounded-2xl flex flex-col items-center gap-2 border transition-all ${role === UserRole.STUDENT ? `bg-${theme}-600 border-${theme}-600 text-white shadow-xl scale-105` : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
-                <GraduationCap size={20} /><span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest">Student</span>
-              </button>
-              <button type="button" onClick={() => setRole(UserRole.FACULTY)} className={`py-3 md:py-4 rounded-2xl flex flex-col items-center gap-2 border transition-all ${role === UserRole.FACULTY ? `bg-${theme}-600 border-${theme}-600 text-white shadow-xl scale-105` : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
-                <BriefcaseIcon size={20} /><span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest">Faculty</span>
-              </button>
-            </div>
+            {!isAdminMode && (
+              <div className="grid grid-cols-2 gap-3 mb-8">
+                <button type="button" onClick={() => setRole(UserRole.STUDENT)} className={`py-3 md:py-4 rounded-2xl flex flex-col items-center gap-2 border transition-all ${role === UserRole.STUDENT ? `bg-${theme}-600 border-${theme}-600 text-white shadow-xl scale-105` : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
+                  <GraduationCap size={20} /><span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest">Student</span>
+                </button>
+                <button type="button" onClick={() => setRole(UserRole.FACULTY)} className={`py-3 md:py-4 rounded-2xl flex flex-col items-center gap-2 border transition-all ${role === UserRole.FACULTY ? `bg-${theme}-600 border-${theme}-600 text-white shadow-xl scale-105` : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
+                  <BriefcaseIcon size={20} /><span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest">Faculty</span>
+                </button>
+              </div>
+            )}
             
             <div className="relative">
               <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input name="email" type="email" required placeholder="Email Address" className={`w-full pl-14 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-${theme}-500 text-sm font-bold transition-all shadow-inner`} />
+              <input 
+                name="email" 
+                type="email" 
+                required 
+                placeholder="Email Address" 
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                className={`w-full pl-14 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-${theme}-500 text-sm font-bold transition-all shadow-inner`} 
+              />
             </div>
             <div className="relative">
               <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
