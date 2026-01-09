@@ -1,0 +1,9 @@
+{
+  "name": "Copy of UNISTONE Smart Campus",
+  "description": "A unified digital ecosystem for university students, faculty, and admins combining campus navigation, learning, video hub, careers, and an AI voice assistant.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}

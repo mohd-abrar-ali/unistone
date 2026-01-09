@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>UNISTONE - Smart Campus</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                50: '#fff0f1',
+                100: '#ffe0e2',
+                200: '#ffc6ca',
+                300: '#ff9ba3',
+                400: '#ff616f',
+                500: '#ff2e43',
+                600: '#d40d27', /* The requested primary color */
+                700: '#b2061c',
+                800: '#930a1c',
+                900: '#7a0e1d',
+                950: '#430209',
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after {
+          box-sizing: border-box;
+        }
+
+        body { 
+          font-family: 'Inter', sans-serif; 
+          margin: 0; 
+          background-color: #ffffff;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+          overflow: hidden; /* Prevent body scroll, use app containers */
+          width: 100vw;
+          height: 100vh;
+        }
+        
+        #root {
+          width: 100%;
+          height: 100%;
+          display: flex;
+        }
+
+        .gradient-bg {
+            background: linear-gradient(135deg, #ffffff 0%, #fefce8 100%);
+        }
+        
+        .academic-gradient {
+            background: linear-gradient(135deg, var(--brand-primary, #8B0000) 0%, #a50000 100%);
+        }
+
+        /* Smooth scrolling */
+        .custom-scrollbar {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(139, 0, 0, 0.2) transparent;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(139, 0, 0, 0.2);
+            border-radius: 10px;
+        }
+
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Prevent unwanted rotations or misalignments */
+        .app-container {
+          display: flex;
+          width: 100%;
+          height: 100%;
+          flex-direction: row;
+        }
+
+        @media (max-width: 768px) {
+          .app-container {
+            flex-direction: column;
+          }
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0"
+  }
+}
+</script>
+</head>
+<body class="bg-white text-slate-900">
+    <div id="root"></div>
+    <script type="module" src="./index.tsx"></script>
+</body>
+</html>
