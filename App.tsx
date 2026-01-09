@@ -161,12 +161,6 @@ const AuthView = ({ onLogin, logo, studentList, facultyList }: { onLogin: (user:
             </p>
           </div>
           <div className="space-y-4 mt-8 md:mt-0">
-             {!isAdminMode && (
-               <div className="p-4 md:p-5 bg-white/10 rounded-[1.5rem] backdrop-blur-md border border-white/20">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-white/80 mb-2">Admin Access</p>
-                  <p className="text-xs font-bold text-white select-all">Email: admin@unistone.edu</p>
-               </div>
-             )}
              {isAdminMode && (
                <div className="p-4 md:p-5 bg-white/10 rounded-[1.5rem] backdrop-blur-md border border-white/20 flex items-center gap-3">
                   <ShieldCheck size={20} className="text-white"/>
@@ -1352,7 +1346,7 @@ export function App() {
                                 <div>
                                     <span className="text-[10px] font-black uppercase text-blue-600">{n.category}</span>
                                     <h4 className="text-base md:text-lg font-black leading-tight mt-1 mb-2 line-clamp-2">{n.title}</h4>
-                                    <span className="text-xs text-slate-400 font-bold">Read Article -></span>
+                                    <span className="text-xs text-slate-400 font-bold flex items-center gap-1">Read Article <ArrowRight size={12} /></span>
                                 </div>
                             </div>
                         ))}
