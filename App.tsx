@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useContext } from 'react';
+import React, { useState, useEffect, useMemo, useContext, useRef } from 'react';
 import { 
   Bell, Search, X, ShieldAlert, Play, Heart, Flame, Bot, MapPin, Send, User as UserIcon, Lock, 
   Mail, GraduationCap, Briefcase as BriefcaseIcon, LogOut, Plus, Users, 
@@ -15,7 +15,7 @@ import { askUnistoneAI } from './services/gemini';
 // --- Theme Context ---
 const ThemeContext = React.createContext('brand');
 
-// --- Global State Persistence Hook ---
+// --- Global State Persistence Hook with Cross-Tab Sync ---
 const useSyncedState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
   const [state, setState] = useState<T>(() => {
     try {
@@ -26,9 +26,38 @@ const useSyncedState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<Re
     }
   });
 
+  // Update localStorage when state changes in this tab
   useEffect(() => {
     localStorage.setItem(key, JSON.stringify(state));
+    // Dispatch a custom event for same-tab updates if needed (optional optimization)
+    window.dispatchEvent(new Event('local-storage'));
   }, [key, state]);
+
+  // Listen for changes from other tabs to sync state
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === key && e.newValue) {
+        try {
+            setState(JSON.parse(e.newValue));
+        } catch(err) { console.error("Sync error", err); }
+      }
+    };
+    
+    // Also listen to custom events for smoother single-page experience if multiple components use same key
+    const handleCustomStorage = () => {
+         try {
+            const saved = localStorage.getItem(key);
+            if(saved) setState(JSON.parse(saved));
+        } catch (e) {}
+    }
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('local-storage', handleCustomStorage);
+    return () => {
+        window.removeEventListener('storage', handleStorageChange);
+        window.removeEventListener('local-storage', handleCustomStorage);
+    };
+  }, [key]);
 
   return [state, setState];
 };
@@ -72,8 +101,8 @@ const AuthView = ({ onLogin, logo, studentList, facultyList }: { onLogin: (user:
           const list = finalRole === UserRole.FACULTY ? facultyList : studentList;
           foundUser = list.find(u => u.email.toLowerCase() === email.toLowerCase());
           
+          // Demo Fallback for new users
           if (!foundUser) {
-             // Simulate DB lookup success for new emails in demo
              if (email.includes('@')) {
                  foundUser = {
                     id: finalRole === UserRole.FACULTY ? `FAC-${Math.floor(Math.random()*1000)}` : `STU-${Math.floor(Math.random()*1000)}`,
@@ -108,29 +137,26 @@ const AuthView = ({ onLogin, logo, studentList, facultyList }: { onLogin: (user:
       <div className={`absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-${theme}-400/10 blur-[120px] rounded-full`} />
       <div className={`absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-${theme}-600/10 blur-[120px] rounded-full`} />
 
-      <div className="w-full max-w-4xl bg-white rounded-[3rem] shadow-2xl overflow-hidden flex flex-col md:flex-row border border-white relative z-10 animate-in fade-in zoom-in-95 duration-700">
-        <div className={`md:w-1/2 p-12 text-white flex flex-col justify-between transition-all duration-700 bg-gradient-to-br from-${theme}-600 to-${theme}-500`}>
+      <div className="w-full max-w-4xl bg-white rounded-[2rem] md:rounded-[3rem] shadow-2xl overflow-hidden flex flex-col md:flex-row border border-white relative z-10 animate-in fade-in zoom-in-95 duration-700">
+        <div className={`md:w-1/2 p-8 md:p-12 text-white flex flex-col justify-between transition-all duration-700 bg-gradient-to-br from-${theme}-600 to-${theme}-500`}>
           <div>
-            <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center mb-8 shadow-xl overflow-hidden">
+            <div className="w-12 h-12 md:w-14 md:h-14 bg-white rounded-2xl flex items-center justify-center mb-6 md:mb-8 shadow-xl overflow-hidden">
               {logo.length > 5 ? <img src={logo} alt="Logo" className="w-full h-full object-contain p-1" /> : <span className={`font-black italic text-3xl text-${theme}-600`}>{logo}</span>}
             </div>
-            <h1 className="text-5xl font-black tracking-tighter mb-4 uppercase">UNISTONE</h1>
-            <p className={`text-${theme}-100 text-lg font-medium leading-relaxed opacity-90 tracking-tight`}>Your Complete Digital Campus Ecosystem</p>
+            <h1 className="text-3xl md:text-5xl font-black tracking-tighter mb-4 uppercase">UNISTONE</h1>
+            <p className={`text-${theme}-100 text-sm md:text-lg font-medium leading-relaxed opacity-90 tracking-tight`}>Your Complete Digital Campus Ecosystem</p>
           </div>
-          <div className="space-y-4">
-             <div className="p-5 bg-white/10 rounded-[1.5rem] backdrop-blur-md border border-white/20">
+          <div className="space-y-4 mt-8 md:mt-0">
+             <div className="p-4 md:p-5 bg-white/10 rounded-[1.5rem] backdrop-blur-md border border-white/20">
                 <p className="text-[10px] font-black uppercase tracking-widest text-white/80 mb-2">Admin Access</p>
-                <p className="text-xs font-bold text-white">Use: admin@unistone.edu</p>
-             </div>
-             <div className="p-5 bg-white/10 rounded-[1.5rem] backdrop-blur-md border border-white/20 text-[10px] font-black uppercase tracking-widest text-center">
-                Secure Campus Portal
+                <p className="text-xs font-bold text-white select-all">Email: admin@unistone.edu</p>
              </div>
           </div>
         </div>
-        <div className="md:w-1/2 p-12 flex flex-col justify-center bg-white relative">
-          <div className="mb-10">
-            <h2 className="text-4xl font-black text-slate-900 tracking-tight leading-none mb-3 uppercase">Welcome Back</h2>
-            <p className="text-slate-500 font-medium">Select your role to continue.</p>
+        <div className="md:w-1/2 p-8 md:p-12 flex flex-col justify-center bg-white relative">
+          <div className="mb-8 md:mb-10">
+            <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight leading-none mb-3 uppercase">Welcome Back</h2>
+            <p className="text-slate-500 font-medium text-sm md:text-base">Select your role to continue.</p>
           </div>
           {error && (
               <div className="mb-6 p-4 bg-red-50 text-red-500 rounded-2xl text-xs font-bold flex items-center gap-2 border border-red-100">
@@ -139,11 +165,11 @@ const AuthView = ({ onLogin, logo, studentList, facultyList }: { onLogin: (user:
           )}
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="grid grid-cols-2 gap-3 mb-8">
-              <button type="button" onClick={() => setRole(UserRole.STUDENT)} className={`py-4 rounded-2xl flex flex-col items-center gap-2 border transition-all ${role === UserRole.STUDENT ? `bg-${theme}-600 border-${theme}-600 text-white shadow-xl scale-105` : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
-                <GraduationCap size={24} /><span className="text-[10px] font-black uppercase tracking-widest">Student</span>
+              <button type="button" onClick={() => setRole(UserRole.STUDENT)} className={`py-3 md:py-4 rounded-2xl flex flex-col items-center gap-2 border transition-all ${role === UserRole.STUDENT ? `bg-${theme}-600 border-${theme}-600 text-white shadow-xl scale-105` : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
+                <GraduationCap size={20} /><span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest">Student</span>
               </button>
-              <button type="button" onClick={() => setRole(UserRole.FACULTY)} className={`py-4 rounded-2xl flex flex-col items-center gap-2 border transition-all ${role === UserRole.FACULTY ? `bg-${theme}-600 border-${theme}-600 text-white shadow-xl scale-105` : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
-                <BriefcaseIcon size={24} /><span className="text-[10px] font-black uppercase tracking-widest">Faculty</span>
+              <button type="button" onClick={() => setRole(UserRole.FACULTY)} className={`py-3 md:py-4 rounded-2xl flex flex-col items-center gap-2 border transition-all ${role === UserRole.FACULTY ? `bg-${theme}-600 border-${theme}-600 text-white shadow-xl scale-105` : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
+                <BriefcaseIcon size={20} /><span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest">Faculty</span>
               </button>
             </div>
             
@@ -165,39 +191,36 @@ const AuthView = ({ onLogin, logo, studentList, facultyList }: { onLogin: (user:
   );
 };
 
-// ... [Keep ConnectHub, TechNewsHub, AcademicHub, ProfileView, MapView, AdminDashboard components as they were in previous version] ...
-
 // --- Module: Tech News Hub ---
 const TechNewsHub = ({ newsList }: { newsList: NewsArticle[] }) => {
     const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null);
     const theme = useContext(ThemeContext);
 
-    // Filter mainly tech/engineering news or just show all in reverse chronological
     const displayNews = [...newsList].reverse();
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500 pb-20">
              <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
                 <div>
-                    <h2 className="text-5xl font-black uppercase leading-none tracking-tighter">Tech <span className={`text-${theme}-600`}>Hub</span></h2>
-                    <p className="text-slate-400 font-bold italic mt-3 text-sm tracking-widest uppercase">Latest Campus & Tech News</p>
+                    <h2 className="text-4xl md:text-5xl font-black uppercase leading-none tracking-tighter">Tech <span className={`text-${theme}-600`}>Hub</span></h2>
+                    <p className="text-slate-400 font-bold italic mt-3 text-xs md:text-sm tracking-widest uppercase">Latest Campus & Tech News</p>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
                 {displayNews.map(news => (
                     <div key={news.id} onClick={() => setSelectedArticle(news)} className="bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden group hover:shadow-2xl hover:border-slate-200 transition-all cursor-pointer">
-                        <div className="h-56 relative overflow-hidden">
+                        <div className="h-48 md:h-56 relative overflow-hidden">
                             <img src={news.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={news.title} />
                             <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-900">{news.category}</div>
                         </div>
-                        <div className="p-8">
+                        <div className="p-6 md:p-8">
                             <div className="flex items-center gap-3 mb-4 text-xs font-bold text-slate-400">
                                 <span>{news.source}</span>
                                 <span className="w-1 h-1 bg-slate-300 rounded-full"/>
                                 <span>{news.readTime}</span>
                             </div>
-                            <h3 className="text-xl font-black text-slate-900 leading-tight mb-4 group-hover:text-blue-600 transition-colors">{news.title}</h3>
+                            <h3 className="text-lg md:text-xl font-black text-slate-900 leading-tight mb-4 group-hover:text-blue-600 transition-colors line-clamp-2">{news.title}</h3>
                             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-slate-900 transition-colors">
                                 Read Article <ArrowRight size={14} />
                             </div>
@@ -208,31 +231,31 @@ const TechNewsHub = ({ newsList }: { newsList: NewsArticle[] }) => {
 
             {/* Reading Modal */}
             {selectedArticle && (
-                <div className="fixed inset-0 z-[2000] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 lg:p-12 animate-in fade-in">
-                    <div className="bg-white w-full max-w-4xl h-full max-h-[90vh] rounded-[3rem] overflow-hidden relative flex flex-col animate-in zoom-in-95 duration-300">
+                <div className="fixed inset-0 z-[2000] bg-black/80 backdrop-blur-md flex items-center justify-center p-0 md:p-4 lg:p-12 animate-in fade-in">
+                    <div className="bg-white w-full max-w-4xl h-full md:max-h-[90vh] rounded-none md:rounded-[3rem] overflow-hidden relative flex flex-col animate-in zoom-in-95 duration-300">
                         <div className="h-64 lg:h-80 relative shrink-0">
                             <img src={selectedArticle.image} className="w-full h-full object-cover" />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-                            <button onClick={() => setSelectedArticle(null)} className="absolute top-8 right-8 p-4 bg-white/20 backdrop-blur-md text-white rounded-full hover:bg-white/40 transition-all"><X size={24}/></button>
-                            <div className="absolute bottom-8 left-8 lg:left-12 max-w-2xl">
+                            <button onClick={() => setSelectedArticle(null)} className="absolute top-6 right-6 p-3 md:p-4 bg-white/20 backdrop-blur-md text-white rounded-full hover:bg-white/40 transition-all"><X size={20}/></button>
+                            <div className="absolute bottom-6 left-6 md:bottom-8 md:left-12 max-w-2xl">
                                 <span className={`px-4 py-2 bg-${theme}-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest mb-4 inline-block`}>{selectedArticle.category}</span>
-                                <h2 className="text-3xl lg:text-5xl font-black text-white leading-none tracking-tight">{selectedArticle.title}</h2>
+                                <h2 className="text-2xl md:text-3xl lg:text-5xl font-black text-white leading-none tracking-tight">{selectedArticle.title}</h2>
                             </div>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-8 lg:p-12 custom-scrollbar">
+                        <div className="flex-1 overflow-y-auto p-6 md:p-8 lg:p-12 custom-scrollbar">
                             <div className="max-w-3xl mx-auto space-y-6">
                                 <div className="flex justify-between items-center border-b border-slate-100 pb-6">
                                     <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center"><Newspaper size={24} className="text-slate-400"/></div>
+                                        <div className="w-10 h-10 md:w-12 md:h-12 bg-slate-100 rounded-full flex items-center justify-center"><Newspaper size={20} className="text-slate-400"/></div>
                                         <div>
-                                            <p className="font-bold text-slate-900">{selectedArticle.source}</p>
+                                            <p className="font-bold text-slate-900 text-sm md:text-base">{selectedArticle.source}</p>
                                             <p className="text-xs text-slate-500 font-medium">{selectedArticle.readTime} read</p>
                                         </div>
                                     </div>
                                     <button className="p-3 rounded-xl bg-slate-50 text-slate-400 hover:text-blue-600 transition-all"><Share2 size={20}/></button>
                                 </div>
-                                <div className="prose prose-lg prose-slate max-w-none">
-                                    <p className="text-xl font-medium text-slate-600 leading-relaxed italic border-l-4 border-slate-200 pl-6 my-8">
+                                <div className="prose prose-lg prose-slate max-w-none text-sm md:text-base">
+                                    <p className="text-lg md:text-xl font-medium text-slate-600 leading-relaxed italic border-l-4 border-slate-200 pl-6 my-8">
                                         {selectedArticle.content ? selectedArticle.content.substring(0, 150) : "No summary available."}...
                                     </p>
                                     <p className="text-slate-800 leading-loose">
@@ -241,7 +264,7 @@ const TechNewsHub = ({ newsList }: { newsList: NewsArticle[] }) => {
                                     <p className="text-slate-800 leading-loose mt-4">
                                         Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
                                     </p>
-                                    <h4 className="text-2xl font-black text-slate-900 mt-8 mb-4">Key Takeaways</h4>
+                                    <h4 className="text-xl md:text-2xl font-black text-slate-900 mt-8 mb-4">Key Takeaways</h4>
                                     <ul className="space-y-3">
                                         <li className="flex gap-3 items-start"><CheckCircle className={`text-${theme}-600 shrink-0 mt-1`} size={20}/><span className="text-slate-700">Impact on future campus infrastructure.</span></li>
                                         <li className="flex gap-3 items-start"><CheckCircle className={`text-${theme}-600 shrink-0 mt-1`} size={20}/><span className="text-slate-700">New opportunities for student research.</span></li>
@@ -263,32 +286,32 @@ const AcademicHub = ({ courses }: { courses: Course[] }) => {
     return (
         <div className="space-y-8 animate-in fade-in duration-500 pb-20">
              <div>
-                <h2 className="text-5xl font-black uppercase leading-none tracking-tighter">Academic <span className={`text-${theme}-600`}>Hub</span></h2>
-                <p className="text-slate-400 font-bold italic mt-3 text-sm tracking-widest uppercase">Your Curriculum & Resources</p>
+                <h2 className="text-4xl md:text-5xl font-black uppercase leading-none tracking-tighter">Academic <span className={`text-${theme}-600`}>Hub</span></h2>
+                <p className="text-slate-400 font-bold italic mt-3 text-xs md:text-sm tracking-widest uppercase">Your Curriculum & Resources</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {courses.map(course => (
-                    <div key={course.id} className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-xl transition-all group">
+                    <div key={course.id} className="bg-white p-6 md:p-8 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-xl transition-all group">
                          <div className="flex justify-between items-start mb-6">
                              <div>
                                  <span className={`px-4 py-2 bg-${theme}-50 text-${theme}-600 rounded-xl text-[10px] font-black uppercase tracking-widest border border-${theme}-100`}>{course.code}</span>
-                                 <h3 className="text-3xl font-black text-slate-900 mt-4 leading-none">{course.name}</h3>
+                                 <h3 className="text-2xl md:text-3xl font-black text-slate-900 mt-4 leading-none">{course.name}</h3>
                              </div>
-                             <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-slate-900 group-hover:text-white transition-all">
-                                 <BookOpen size={28}/>
+                             <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-slate-900 group-hover:text-white transition-all">
+                                 <BookOpen size={24} className="md:w-7 md:h-7"/>
                              </div>
                          </div>
-                         <p className="text-slate-500 font-medium mb-8 line-clamp-2">{course.description}</p>
+                         <p className="text-slate-500 font-medium mb-8 line-clamp-2 text-sm md:text-base">{course.description}</p>
                          
                          <div className="space-y-4">
                              {course.modules?.slice(0, 2).map((module, idx) => (
                                  <div key={idx} className="p-4 bg-slate-50 rounded-2xl flex items-center justify-between">
                                      <div className="flex items-center gap-4">
                                          <div className={`w-8 h-8 rounded-full bg-${theme}-100 flex items-center justify-center text-${theme}-600 font-bold text-xs`}>{idx + 1}</div>
-                                         <span className="font-bold text-slate-700 text-sm">{module.title}</span>
+                                         <span className="font-bold text-slate-700 text-xs md:text-sm">{module.title}</span>
                                      </div>
-                                     <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{module.lectures?.length || 0} Lectures</span>
+                                     <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest hidden md:block">{module.lectures?.length || 0} Lectures</span>
                                  </div>
                              ))}
                          </div>
@@ -324,12 +347,12 @@ const ConnectHub = ({ facultyList, studentList }: any) => {
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
         <div>
-           <h2 className="text-5xl font-black uppercase leading-none tracking-tighter">Campus <span className={`text-${theme}-600`}>Connect</span></h2>
-           <p className="text-slate-400 font-bold italic mt-3 text-sm tracking-widest uppercase">Peer-to-Peer Directory</p>
+           <h2 className="text-4xl md:text-5xl font-black uppercase leading-none tracking-tighter">Campus <span className={`text-${theme}-600`}>Connect</span></h2>
+           <p className="text-slate-400 font-bold italic mt-3 text-xs md:text-sm tracking-widest uppercase">Peer-to-Peer Directory</p>
         </div>
-        <div className="flex gap-2 bg-white p-2 rounded-[1.5rem] border border-slate-100 shadow-sm">
-           <button onClick={() => setTab('faculty')} className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase transition-all ${tab === 'faculty' ? `bg-${theme}-600 text-white shadow-lg shadow-${theme}-500/20` : 'text-slate-400 hover:bg-slate-50'}`}>Faculty</button>
-           <button onClick={() => setTab('community')} className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase transition-all ${tab === 'community' ? `bg-${theme}-600 text-white shadow-lg shadow-${theme}-500/20` : 'text-slate-400 hover:bg-slate-50'}`}>Students</button>
+        <div className="flex gap-2 bg-white p-2 rounded-[1.5rem] border border-slate-100 shadow-sm w-full lg:w-auto overflow-x-auto">
+           <button onClick={() => setTab('faculty')} className={`flex-1 lg:flex-none px-6 py-3 rounded-xl font-black text-[10px] uppercase transition-all whitespace-nowrap ${tab === 'faculty' ? `bg-${theme}-600 text-white shadow-lg shadow-${theme}-500/20` : 'text-slate-400 hover:bg-slate-50'}`}>Faculty</button>
+           <button onClick={() => setTab('community')} className={`flex-1 lg:flex-none px-6 py-3 rounded-xl font-black text-[10px] uppercase transition-all whitespace-nowrap ${tab === 'community' ? `bg-${theme}-600 text-white shadow-lg shadow-${theme}-500/20` : 'text-slate-400 hover:bg-slate-50'}`}>Students</button>
         </div>
       </div>
 
@@ -338,24 +361,24 @@ const ConnectHub = ({ facultyList, studentList }: any) => {
          <input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search ${tab === 'faculty' ? 'faculty' : 'students'}...`} className={`w-full pl-14 pr-6 py-5 bg-white border border-slate-100 rounded-[2rem] font-bold text-sm outline-none focus:border-${theme}-500 transition-all shadow-sm`} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
         {displayList.filter((item: any) => item.name.toLowerCase().includes(search.toLowerCase()) && item.status !== 'Suspended').map((item: any) => (
           <div 
             key={item.id} 
             onClick={() => setSelectedProfile(item)}
-            className={`bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm group hover:border-${theme}-200 transition-all hover:shadow-2xl cursor-pointer`}
+            className={`bg-white p-8 md:p-10 rounded-[3rem] border border-slate-100 shadow-sm group hover:border-${theme}-200 transition-all hover:shadow-2xl cursor-pointer`}
           >
              <div className="flex items-center gap-6 mb-8">
                 {item.image ? (
-                    <img src={item.image} alt={item.name} className="w-20 h-20 rounded-[2rem] object-cover shadow-inner group-hover:scale-110 transition-transform duration-500" />
+                    <img src={item.image} alt={item.name} className="w-16 h-16 md:w-20 md:h-20 rounded-[2rem] object-cover shadow-inner group-hover:scale-110 transition-transform duration-500" />
                 ) : (
-                    <div className={`w-20 h-20 rounded-[2rem] flex items-center justify-center font-black text-3xl shadow-inner group-hover:scale-110 transition-transform duration-500 ${tab === 'faculty' ? `bg-${theme}-50 text-${theme}-600` : 'bg-orange-50 text-orange-600'}`}>
+                    <div className={`w-16 h-16 md:w-20 md:h-20 rounded-[2rem] flex items-center justify-center font-black text-2xl md:text-3xl shadow-inner group-hover:scale-110 transition-transform duration-500 ${tab === 'faculty' ? `bg-${theme}-50 text-${theme}-600` : 'bg-orange-50 text-orange-600'}`}>
                     {item.name[0]}
                     </div>
                 )}
-                <div>
-                   <h4 className="text-xl font-black text-slate-900 leading-none uppercase tracking-tighter">{item.name}</h4>
-                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">{item.role || item.department}</p>
+                <div className="overflow-hidden">
+                   <h4 className="text-lg md:text-xl font-black text-slate-900 leading-none uppercase tracking-tighter truncate">{item.name}</h4>
+                   <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">{item.role || item.department}</p>
                    {tab === 'faculty' && <p className={`text-[9px] font-bold text-${theme}-600 uppercase mt-1`}>Room: {item.block}</p>}
                 </div>
              </div>
@@ -368,30 +391,30 @@ const ConnectHub = ({ facultyList, studentList }: any) => {
 
       {/* Generic Profile Modal Overlay */}
       {selectedProfile && (
-        <div className="fixed inset-0 z-[2000] bg-black/60 backdrop-blur-xl flex items-center justify-center p-8 animate-in fade-in duration-500">
-           <div className={`bg-white w-full max-w-2xl rounded-[5rem] overflow-hidden shadow-5xl border-[8px] border-${theme}-50 animate-in zoom-in-95 duration-500`}>
-              <div className={`h-48 bg-gradient-to-r from-${theme}-600 to-${theme}-500 relative`}>
-                 <button onClick={() => setSelectedProfile(null)} className="absolute top-10 right-10 p-4 bg-white/20 backdrop-blur-md text-white rounded-3xl hover:bg-white/40 transition-all"><X size={24}/></button>
-                 <div className="absolute -bottom-16 left-16">
+        <div className="fixed inset-0 z-[2000] bg-black/60 backdrop-blur-xl flex items-center justify-center p-4 animate-in fade-in duration-500">
+           <div className={`bg-white w-full max-w-2xl rounded-[3rem] md:rounded-[5rem] overflow-hidden shadow-5xl border-[8px] border-${theme}-50 animate-in zoom-in-95 duration-500 max-h-[90vh] flex flex-col`}>
+              <div className={`h-40 md:h-48 bg-gradient-to-r from-${theme}-600 to-${theme}-500 relative shrink-0`}>
+                 <button onClick={() => setSelectedProfile(null)} className="absolute top-6 right-6 p-4 bg-white/20 backdrop-blur-md text-white rounded-3xl hover:bg-white/40 transition-all"><X size={20}/></button>
+                 <div className="absolute -bottom-12 md:-bottom-16 left-8 md:left-16">
                     {selectedProfile.image ? (
-                        <img src={selectedProfile.image} className="w-40 h-40 rounded-[3.5rem] bg-white border-[8px] border-white shadow-3xl object-cover" />
+                        <img src={selectedProfile.image} className="w-24 h-24 md:w-40 md:h-40 rounded-[2.5rem] md:rounded-[3.5rem] bg-white border-[6px] md:border-[8px] border-white shadow-3xl object-cover" />
                     ) : (
-                        <div className={`w-40 h-40 rounded-[3.5rem] bg-white border-[8px] border-white shadow-3xl flex items-center justify-center font-black text-6xl text-${theme}-600 uppercase`}>
+                        <div className={`w-24 h-24 md:w-40 md:h-40 rounded-[2.5rem] md:rounded-[3.5rem] bg-white border-[6px] md:border-[8px] border-white shadow-3xl flex items-center justify-center font-black text-4xl md:text-6xl text-${theme}-600 uppercase`}>
                         {selectedProfile.name[0]}
                         </div>
                     )}
                  </div>
               </div>
-              <div className="p-20 pt-24 space-y-12 max-h-[70vh] overflow-y-auto custom-scrollbar no-scrollbar">
+              <div className="p-8 md:p-20 pt-16 md:pt-24 space-y-8 md:space-y-12 overflow-y-auto custom-scrollbar no-scrollbar flex-1">
                  <div className="space-y-4">
-                    <h3 className="text-5xl font-black text-slate-900 tracking-tighter uppercase leading-none">{selectedProfile.name}</h3>
-                    <p className={`text-xl font-bold text-${theme}-600 uppercase tracking-widest`}>{selectedProfile.role} • {selectedProfile.department}</p>
-                    <p className="text-slate-500 font-medium italic text-lg leading-relaxed">{selectedProfile.bio || "No bio available."}</p>
+                    <h3 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter uppercase leading-none">{selectedProfile.name}</h3>
+                    <p className={`text-sm md:text-xl font-bold text-${theme}-600 uppercase tracking-widest`}>{selectedProfile.role} • {selectedProfile.department}</p>
+                    <p className="text-slate-500 font-medium italic text-sm md:text-lg leading-relaxed">{selectedProfile.bio || "No bio available."}</p>
                  </div>
                  <div className="space-y-8 pt-10 border-t border-slate-50">
-                    <h4 className="text-[12px] font-black text-slate-400 uppercase tracking-widest">Contact Information</h4>
+                    <h4 className="text-[10px] md:text-[12px] font-black text-slate-400 uppercase tracking-widest">Contact Information</h4>
                     <div className="flex flex-wrap gap-4">
-                       <button className="flex-1 min-w-[200px] py-6 bg-slate-900 text-white rounded-[2.5rem] font-black uppercase text-[11px] flex items-center justify-center gap-4 hover:bg-black transition-all active:scale-95 shadow-2xl">
+                       <button className="flex-1 min-w-[200px] py-4 md:py-6 bg-slate-900 text-white rounded-[2rem] md:rounded-[2.5rem] font-black uppercase text-[10px] md:text-[11px] flex items-center justify-center gap-4 hover:bg-black transition-all active:scale-95 shadow-2xl">
                           <Mail size={20}/> Send Email
                        </button>
                     </div>
@@ -440,22 +463,22 @@ const ProfileView = ({ user, setUser, updateGlobalUser }: { user: User, setUser:
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-12 animate-in fade-in duration-500 pb-20">
-      <div className="bg-white rounded-[4rem] border border-slate-100 shadow-2xl overflow-hidden">
-         <div className="h-64 relative">
+    <div className="max-w-5xl mx-auto space-y-8 md:space-y-12 animate-in fade-in duration-500 pb-20">
+      <div className="bg-white rounded-[3rem] md:rounded-[4rem] border border-slate-100 shadow-2xl overflow-hidden">
+         <div className="h-48 md:h-64 relative">
              <img src={formData.coverImage || "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&q=80&w=1200"} className="w-full h-full object-cover" alt="Cover" />
              {editing && (
                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                    <label className="cursor-pointer bg-white/20 backdrop-blur-md border border-white px-6 py-3 rounded-2xl text-white font-bold uppercase tracking-widest flex items-center gap-3 hover:bg-white/30 transition-all">
+                    <label className="cursor-pointer bg-white/20 backdrop-blur-md border border-white px-6 py-3 rounded-2xl text-white font-bold uppercase tracking-widest flex items-center gap-3 hover:bg-white/30 transition-all text-xs md:text-sm">
                         <Camera size={20}/> Change Cover
                         <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, 'coverImage')}/>
                     </label>
                  </div>
              )}
          </div>
-         <div className="px-12 pb-12 relative">
-            <div className="flex justify-between items-end -translate-y-20">
-               <div className="w-48 h-48 rounded-[3rem] bg-white border-[8px] border-white shadow-2xl overflow-hidden relative group">
+         <div className="px-6 md:px-12 pb-12 relative">
+            <div className="flex flex-col md:flex-row justify-between items-end md:-translate-y-20 -translate-y-12 mb-6 md:mb-0">
+               <div className="w-32 h-32 md:w-48 md:h-48 rounded-[2rem] md:rounded-[3rem] bg-white border-[6px] md:border-[8px] border-white shadow-2xl overflow-hidden relative group shrink-0">
                   <img src={formData.image} className="w-full h-full object-cover" alt="Profile" />
                   {editing && (
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
@@ -466,18 +489,18 @@ const ProfileView = ({ user, setUser, updateGlobalUser }: { user: User, setUser:
                     </div>
                   )}
                </div>
-               <button onClick={() => editing ? saveProfile() : setEditing(true)} className="mb-6 px-10 py-5 bg-slate-900 text-white rounded-[2rem] font-black uppercase text-[11px] tracking-widest shadow-2xl hover:scale-105 active:scale-95 transition-all">
+               <button onClick={() => editing ? saveProfile() : setEditing(true)} className="mt-4 md:mt-0 mb-0 md:mb-6 px-8 md:px-10 py-4 md:py-5 bg-slate-900 text-white rounded-[2rem] font-black uppercase text-[10px] md:text-[11px] tracking-widest shadow-2xl hover:scale-105 active:scale-95 transition-all w-full md:w-auto">
                   {editing ? 'Save Changes' : 'Edit Profile'}
                </button>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mt-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 mt-0 md:mt-4">
                <div className="space-y-8">
                   {editing ? (
                     <div className="space-y-6">
                        <div className="space-y-2">
                           <label className="text-[10px] font-black text-slate-400 uppercase ml-3 tracking-widest">Full Name</label>
-                          <input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className={`w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold outline-none focus:border-${theme}-500 transition-all shadow-inner`} />
+                          <input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className={`w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold outline-none focus:border-${theme}-500 transition-all shadow-inner text-sm`} />
                        </div>
                        <div className="space-y-2">
                           <label className="text-[10px] font-black text-slate-400 uppercase ml-3 tracking-widest">Bio</label>
@@ -487,41 +510,41 @@ const ProfileView = ({ user, setUser, updateGlobalUser }: { user: User, setUser:
                   ) : (
                     <div className="space-y-6">
                        <div>
-                          <h2 className="text-5xl font-black text-slate-900 tracking-tighter uppercase leading-none">{formData.name}</h2>
+                          <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter uppercase leading-none">{formData.name}</h2>
                           <div className="flex items-center gap-3 mt-4">
                              <span className={`px-4 py-1.5 bg-${theme}-50 text-${theme}-600 text-[10px] font-black uppercase rounded-lg border border-${theme}-100`}>{formData.department}</span>
                              <span className="px-4 py-1.5 bg-slate-50 text-slate-400 text-[10px] font-black uppercase rounded-lg border border-slate-100">{formData.id}</span>
                           </div>
                        </div>
-                       <p className="text-slate-500 font-medium italic text-lg leading-relaxed">{formData.bio || 'No bio available.'}</p>
+                       <p className="text-slate-500 font-medium italic text-base md:text-lg leading-relaxed">{formData.bio || 'No bio available.'}</p>
                     </div>
                   )}
                </div>
                
                <div className="space-y-8">
-                  <div className="grid grid-cols-3 gap-6">
-                     <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm text-center group hover:border-orange-200 transition-all">
-                        <Flame className="mx-auto text-orange-500 mb-3 group-hover:scale-110 transition-transform" size={32} fill="currentColor"/>
-                        <p className="text-3xl font-black leading-none text-slate-900">{formData.streak}</p>
-                        <p className="text-[10px] font-black uppercase text-slate-400 mt-2 tracking-widest">Streak</p>
+                  <div className="grid grid-cols-3 gap-3 md:gap-6">
+                     <div className="bg-white p-4 md:p-8 rounded-[2rem] md:rounded-[2.5rem] border border-slate-100 shadow-sm text-center group hover:border-orange-200 transition-all">
+                        <Flame className="mx-auto text-orange-500 mb-3 group-hover:scale-110 transition-transform w-6 h-6 md:w-8 md:h-8" fill="currentColor"/>
+                        <p className="text-2xl md:text-3xl font-black leading-none text-slate-900">{formData.streak}</p>
+                        <p className="text-[9px] md:text-[10px] font-black uppercase text-slate-400 mt-2 tracking-widest">Streak</p>
                      </div>
-                     <div className={`bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm text-center group hover:border-${theme}-200 transition-all`}>
-                        <Award className={`mx-auto text-${theme}-500 mb-3 group-hover:scale-110 transition-transform`} size={32} fill="currentColor"/>
-                        <p className="text-3xl font-black leading-none text-slate-900">{formData.xp}</p>
-                        <p className="text-[10px] font-black uppercase text-slate-400 mt-2 tracking-widest">XP</p>
+                     <div className={`bg-white p-4 md:p-8 rounded-[2rem] md:rounded-[2.5rem] border border-slate-100 shadow-sm text-center group hover:border-${theme}-200 transition-all`}>
+                        <Award className={`mx-auto text-${theme}-500 mb-3 group-hover:scale-110 transition-transform w-6 h-6 md:w-8 md:h-8`} fill="currentColor"/>
+                        <p className="text-2xl md:text-3xl font-black leading-none text-slate-900">{formData.xp}</p>
+                        <p className="text-[9px] md:text-[10px] font-black uppercase text-slate-400 mt-2 tracking-widest">XP</p>
                      </div>
-                     <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm text-center group hover:border-emerald-200 transition-all">
-                        <ScanFace className="mx-auto text-emerald-500 mb-3 group-hover:scale-110 transition-transform" size={32}/>
-                        <p className="text-3xl font-black leading-none text-slate-900">{formData.attendance}%</p>
-                        <p className="text-[10px] font-black uppercase text-slate-400 mt-2 tracking-widest">Attn.</p>
+                     <div className="bg-white p-4 md:p-8 rounded-[2rem] md:rounded-[2.5rem] border border-slate-100 shadow-sm text-center group hover:border-emerald-200 transition-all">
+                        <ScanFace className="mx-auto text-emerald-500 mb-3 group-hover:scale-110 transition-transform w-6 h-6 md:w-8 md:h-8"/>
+                        <p className="text-2xl md:text-3xl font-black leading-none text-slate-900">{formData.attendance}%</p>
+                        <p className="text-[9px] md:text-[10px] font-black uppercase text-slate-400 mt-2 tracking-widest">Attn.</p>
                      </div>
                   </div>
 
-                  <div className="bg-slate-50 p-10 rounded-[3rem] border border-slate-100 space-y-6 shadow-inner">
-                     <h3 className={`text-xl font-black uppercase tracking-tight flex items-center gap-3`}><Laptop className={`text-${theme}-600`} size={24}/> Skills</h3>
+                  <div className="bg-slate-50 p-6 md:p-10 rounded-[3rem] border border-slate-100 space-y-6 shadow-inner">
+                     <h3 className={`text-lg md:text-xl font-black uppercase tracking-tight flex items-center gap-3`}><Laptop className={`text-${theme}-600`} size={24}/> Skills</h3>
                      <div className="flex flex-wrap gap-3">
                         {(formData.skills || []).map((s: string, idx: number) => (
-                          <span key={idx} className="px-5 py-2.5 bg-white text-slate-600 text-[10px] font-black uppercase rounded-xl border border-slate-100 shadow-sm flex items-center gap-2">
+                          <span key={idx} className="px-4 py-2 md:px-5 md:py-2.5 bg-white text-slate-600 text-[9px] md:text-[10px] font-black uppercase rounded-xl border border-slate-100 shadow-sm flex items-center gap-2">
                               {s}
                               {editing && (
                                   <button onClick={() => {
@@ -562,9 +585,9 @@ const MapView = ({ buildings, onUpdateBuilding }: { buildings: CampusBuilding[],
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-        <h2 className="text-5xl font-black uppercase leading-none tracking-tighter">Campus <span className={`text-${theme}-600`}>Map</span></h2>
+        <h2 className="text-4xl md:text-5xl font-black uppercase leading-none tracking-tighter">Campus <span className={`text-${theme}-600`}>Map</span></h2>
         
-        <div className="h-[65vh] bg-slate-900 rounded-[4rem] border border-slate-100 relative overflow-hidden shadow-2xl group">
+        <div className="h-[50vh] md:h-[65vh] bg-slate-900 rounded-[3rem] md:rounded-[4rem] border border-slate-100 relative overflow-hidden shadow-2xl group">
             <div className="absolute inset-0">
                 <img src="https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&q=80&w=2000" className="w-full h-full object-cover opacity-60 grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-1000" />
                 <div className={`absolute inset-0 bg-${theme}-900/20 mix-blend-overlay`} />
@@ -575,13 +598,13 @@ const MapView = ({ buildings, onUpdateBuilding }: { buildings: CampusBuilding[],
                     {buildings.map((b: any) => (
                     <div key={b.id} className={`absolute transition-all duration-700 ${selected?.id === b.id ? 'z-[100]' : 'z-10'}`} style={{ top: b.mapCoords.top, left: b.mapCoords.left }}>
                         <div onClick={() => setSelected(b)} className="group relative">
-                        <div className={`w-16 h-16 ${b.color} rounded-full border-[4px] border-white shadow-[0_0_30px_rgba(0,0,0,0.3)] flex items-center justify-center text-white transition-all group-hover:scale-125 hover:z-50 cursor-pointer 
-                            ${selected?.id === b.id ? 'ring-[8px] ring-white/50 scale-125 selected-pin-pulse shadow-[0_0_50px_rgba(255,255,255,0.5)]' : ''}`}>
-                            <MapPin size={28} fill="currentColor"/>
+                        <div className={`w-12 h-12 md:w-16 md:h-16 ${b.color} rounded-full border-[3px] md:border-[4px] border-white shadow-[0_0_30px_rgba(0,0,0,0.3)] flex items-center justify-center text-white transition-all group-hover:scale-125 hover:z-50 cursor-pointer 
+                            ${selected?.id === b.id ? 'ring-[6px] md:ring-[8px] ring-white/50 scale-125 selected-pin-pulse shadow-[0_0_50px_rgba(255,255,255,0.5)]' : ''}`}>
+                            <MapPin size={20} className="md:w-7 md:h-7" fill="currentColor"/>
                         </div>
-                        <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-4 bg-white px-6 py-3 rounded-2xl shadow-xl border border-slate-100 transition-all pointer-events-none whitespace-nowrap z-[60] 
+                        <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-4 bg-white px-4 py-2 md:px-6 md:py-3 rounded-2xl shadow-xl border border-slate-100 transition-all pointer-events-none whitespace-nowrap z-[60] 
                             ${selected?.id === b.id ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-4 scale-90 group-hover:opacity-100 group-hover:translate-y-0 group-hover:scale-100'}`}>
-                            <p className="text-[12px] font-black uppercase tracking-tighter text-slate-900">{b.name}</p>
+                            <p className="text-[10px] md:text-[12px] font-black uppercase tracking-tighter text-slate-900">{b.name}</p>
                             <div className="absolute bottom-[-6px] left-1/2 -translate-x-1/2 w-3 h-3 bg-white rotate-45" />
                         </div>
                         </div>
@@ -590,20 +613,20 @@ const MapView = ({ buildings, onUpdateBuilding }: { buildings: CampusBuilding[],
                 </div>
             </div>
              {selected && (
-                <div className="absolute bottom-10 right-10 w-[400px] bg-white/95 backdrop-blur-xl rounded-[3rem] border border-white/50 shadow-5xl overflow-hidden animate-in slide-in-from-right-16 duration-500 z-[100]">
-                   <div className="h-48 relative group">
+                <div className="absolute bottom-6 left-6 right-6 md:left-auto md:right-10 md:bottom-10 md:w-[400px] bg-white/95 backdrop-blur-xl rounded-[2.5rem] border border-white/50 shadow-5xl overflow-hidden animate-in slide-in-from-bottom-10 md:slide-in-from-right-16 duration-500 z-[100]">
+                   <div className="h-32 md:h-48 relative group">
                       <img src={selected.image} className="h-full w-full object-cover" alt=""/>
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-                      <button onClick={() => setSelected(null)} className="absolute top-6 right-6 p-3 bg-white/20 backdrop-blur-md text-white rounded-full hover:bg-white/40 transition-all"><X size={20}/></button>
-                      <div className="absolute bottom-6 left-8">
-                         <h4 className="text-2xl font-black leading-none uppercase tracking-tighter text-white">{selected.name}</h4>
+                      <button onClick={() => setSelected(null)} className="absolute top-4 right-4 p-2 md:p-3 bg-white/20 backdrop-blur-md text-white rounded-full hover:bg-white/40 transition-all"><X size={18}/></button>
+                      <div className="absolute bottom-4 left-6 md:bottom-6 md:left-8">
+                         <h4 className="text-xl md:text-2xl font-black leading-none uppercase tracking-tighter text-white">{selected.name}</h4>
                       </div>
                    </div>
-                   <div className="p-8 space-y-4 max-h-[300px] overflow-y-auto">
-                      <p className="text-slate-600 text-sm font-medium leading-relaxed italic">{selected.description}</p>
+                   <div className="p-6 md:p-8 space-y-4 max-h-[200px] md:max-h-[300px] overflow-y-auto">
+                      <p className="text-slate-600 text-xs md:text-sm font-medium leading-relaxed italic">{selected.description}</p>
                       <div className="flex flex-wrap gap-2 pt-2">
                         {selected.departments.map((d: string) => (
-                           <span key={d} className="px-4 py-2 bg-slate-100 text-slate-700 text-[10px] font-black uppercase rounded-xl border border-slate-200">{d}</span>
+                           <span key={d} className="px-3 py-1.5 md:px-4 md:py-2 bg-slate-100 text-slate-700 text-[9px] md:text-[10px] font-black uppercase rounded-xl border border-slate-200">{d}</span>
                         ))}
                      </div>
                    </div>
@@ -614,7 +637,7 @@ const MapView = ({ buildings, onUpdateBuilding }: { buildings: CampusBuilding[],
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {buildings.map((b: any) => (
                 <div key={b.id} onClick={() => setSelected(b)} className={`cursor-pointer group relative overflow-hidden rounded-[3rem] border-2 transition-all ${selected?.id === b.id ? `border-${theme}-600 shadow-xl scale-[1.02]` : `border-slate-100 bg-white hover:border-${theme}-200`}`}>
-                    <div className="h-40 bg-slate-100 relative">
+                    <div className="h-32 md:h-40 bg-slate-100 relative">
                         <img src={b.image} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={b.name} />
                          <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-all" />
                     </div>
@@ -748,17 +771,17 @@ const AdminDashboard = ({
 
     return (
         <div className="space-y-12 animate-in fade-in duration-500 pb-20">
-            <header className="flex justify-between items-end">
+            <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
-                   <h2 className="text-6xl font-black uppercase tracking-tighter leading-none">Admin <span className={`text-${theme}-600`}>Console</span></h2>
+                   <h2 className="text-4xl md:text-6xl font-black uppercase tracking-tighter leading-none">Admin <span className={`text-${theme}-600`}>Console</span></h2>
                    <p className="text-slate-400 font-bold italic mt-4 uppercase tracking-widest text-sm">System Configuration & Management</p>
                 </div>
-                <div className="flex bg-white p-2 rounded-[2rem] border border-slate-100 shadow-sm gap-2">
+                <div className="flex bg-white p-2 rounded-[2rem] border border-slate-100 shadow-sm gap-2 overflow-x-auto w-full md:w-auto">
                     {['users', 'buildings', 'campus', 'academic', 'reports', 'settings'].map((s) => (
                         <button 
                             key={s} 
                             onClick={() => setActiveSection(s as any)} 
-                            className={`px-8 py-3 rounded-[1.5rem] font-black text-[10px] uppercase transition-all ${activeSection === s ? `bg-slate-900 text-white` : 'text-slate-400 hover:bg-slate-50'}`}
+                            className={`px-6 md:px-8 py-3 rounded-[1.5rem] font-black text-[10px] uppercase transition-all whitespace-nowrap ${activeSection === s ? `bg-slate-900 text-white` : 'text-slate-400 hover:bg-slate-50'}`}
                         >
                             {s}
                         </button>
@@ -768,37 +791,37 @@ const AdminDashboard = ({
 
             {activeSection === 'users' && (
                 <div className="space-y-8">
-                    <div className="flex gap-4">
-                        <button onClick={() => setUserTab('students')} className={`px-6 py-3 rounded-xl font-bold text-sm transition-all ${userTab === 'students' ? `bg-${theme}-100 text-${theme}-700` : 'bg-white text-slate-500'}`}>Students</button>
-                        <button onClick={() => setUserTab('faculty')} className={`px-6 py-3 rounded-xl font-bold text-sm transition-all ${userTab === 'faculty' ? `bg-${theme}-100 text-${theme}-700` : 'bg-white text-slate-500'}`}>Faculty</button>
+                    <div className="flex gap-4 overflow-x-auto pb-2">
+                        <button onClick={() => setUserTab('students')} className={`px-6 py-3 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${userTab === 'students' ? `bg-${theme}-100 text-${theme}-700` : 'bg-white text-slate-500'}`}>Students</button>
+                        <button onClick={() => setUserTab('faculty')} className={`px-6 py-3 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${userTab === 'faculty' ? `bg-${theme}-100 text-${theme}-700` : 'bg-white text-slate-500'}`}>Faculty</button>
                         <div className="flex-1"/>
-                        <button onClick={() => setShowUserModal(true)} className={`px-6 py-3 bg-${theme}-600 text-white rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-${theme}-700 flex items-center gap-2`}>
-                            <UserPlus size={16}/> Add {userTab === 'students' ? 'Student' : 'Faculty'}
+                        <button onClick={() => setShowUserModal(true)} className={`px-6 py-3 bg-${theme}-600 text-white rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-${theme}-700 flex items-center gap-2 whitespace-nowrap shadow-lg`}>
+                            <UserPlus size={16}/> <span className="hidden md:inline">Add {userTab === 'students' ? 'Student' : 'Faculty'}</span>
                         </button>
                     </div>
 
                     <div className="grid grid-cols-1 gap-4">
                         {(userTab === 'students' ? studentList : facultyList).map((u: User) => (
-                            <div key={u.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex items-center justify-between group hover:border-slate-200 transition-all">
-                                <div className="flex items-center gap-6">
+                            <div key={u.id} className="bg-white p-4 md:p-6 rounded-[2rem] border border-slate-100 flex items-center justify-between group hover:border-slate-200 transition-all">
+                                <div className="flex items-center gap-4 md:gap-6">
                                     <div className="relative">
-                                        <img src={u.image} className={`w-16 h-16 rounded-2xl object-cover ${u.status === 'Suspended' ? 'grayscale opacity-50' : ''}`} />
-                                        {u.status === 'Suspended' && <div className="absolute inset-0 flex items-center justify-center"><Ban className="text-red-600" size={24}/></div>}
+                                        <img src={u.image} className={`w-12 h-12 md:w-16 md:h-16 rounded-2xl object-cover ${u.status === 'Suspended' ? 'grayscale opacity-50' : ''}`} />
+                                        {u.status === 'Suspended' && <div className="absolute inset-0 flex items-center justify-center"><Ban className="text-red-600" size={20}/></div>}
                                     </div>
                                     <div>
-                                        <h4 className="text-lg font-black text-slate-900">{u.name}</h4>
-                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">{u.id} • {u.department}</p>
+                                        <h4 className="text-base md:text-lg font-black text-slate-900">{u.name}</h4>
+                                        <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wide">{u.id} • {u.department}</p>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-3">
-                                    <span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${u.status === 'Suspended' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                                <div className="flex items-center gap-2 md:gap-3">
+                                    <span className={`px-3 py-1 md:px-4 md:py-2 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest ${u.status === 'Suspended' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
                                         {u.status || 'Active'}
                                     </span>
-                                    <button onClick={() => toggleUserStatus(u.id, userTab === 'students')} className="p-3 bg-slate-50 rounded-xl hover:bg-slate-100 text-slate-500" title="Suspend/Activate">
-                                        <Power size={18} />
+                                    <button onClick={() => toggleUserStatus(u.id, userTab === 'students')} className="p-2 md:p-3 bg-slate-50 rounded-xl hover:bg-slate-100 text-slate-500" title="Suspend/Activate">
+                                        <Power size={16} className="md:w-[18px] md:h-[18px]" />
                                     </button>
-                                    <button onClick={() => deleteUser(u.id, userTab === 'students')} className="p-3 bg-red-50 rounded-xl hover:bg-red-100 text-red-500" title="Delete">
-                                        <Trash2 size={18} />
+                                    <button onClick={() => deleteUser(u.id, userTab === 'students')} className="p-2 md:p-3 bg-red-50 rounded-xl hover:bg-red-100 text-red-500" title="Delete">
+                                        <Trash2 size={16} className="md:w-[18px] md:h-[18px]" />
                                     </button>
                                 </div>
                             </div>
@@ -810,8 +833,8 @@ const AdminDashboard = ({
             {activeSection === 'buildings' && (
                 <div className="space-y-8">
                      <div className="flex justify-end">
-                        <button onClick={() => { setEditingBuilding(null); setNewBuilding({}); setShowBuildingModal(true); }} className={`px-6 py-3 bg-${theme}-600 text-white rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-${theme}-700 flex items-center gap-2`}>
-                            <Plus size={16}/> Add Building
+                        <button onClick={() => { setEditingBuilding(null); setNewBuilding({}); setShowBuildingModal(true); }} className={`px-6 py-3 bg-${theme}-600 text-white rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-${theme}-700 flex items-center gap-2 shadow-lg`}>
+                            <Plus size={16}/> <span className="hidden md:inline">Add Building</span>
                         </button>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -836,9 +859,9 @@ const AdminDashboard = ({
 
             {activeSection === 'campus' && (
                 <div className="space-y-8">
-                    <div className="flex gap-4">
+                    <div className="flex gap-4 overflow-x-auto pb-2">
                         {['events', 'jobs', 'news'].map((t) => (
-                            <button key={t} onClick={() => setContentTab(t as any)} className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase transition-all ${contentTab === t ? `bg-${theme}-600 text-white` : 'bg-white text-slate-400'}`}>
+                            <button key={t} onClick={() => setContentTab(t as any)} className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase transition-all whitespace-nowrap ${contentTab === t ? `bg-${theme}-600 text-white` : 'bg-white text-slate-400'}`}>
                                 {t}
                             </button>
                         ))}
@@ -858,17 +881,17 @@ const AdminDashboard = ({
                                 <input placeholder="Location / Company" className="p-3 rounded-xl border border-slate-200 outline-none text-sm font-medium" onChange={e => setNewItem({...newItem, location: e.target.value, company: e.target.value})} value={newItem.location || newItem.company || ''}/>
                             </>
                         )}
-                        <button onClick={() => addItem(contentTab === 'events' ? 'event' : contentTab === 'jobs' ? 'job' : 'news')} className="bg-slate-900 text-white rounded-xl font-black uppercase text-xs">Add {contentTab}</button>
+                        <button onClick={() => addItem(contentTab === 'events' ? 'event' : contentTab === 'jobs' ? 'job' : 'news')} className="bg-slate-900 text-white rounded-xl font-black uppercase text-xs">Add</button>
                     </div>
 
                     <div className="grid grid-cols-1 gap-4">
                         {(contentTab === 'events' ? events : contentTab === 'jobs' ? jobs : newsList).map((item: any) => (
-                             <div key={item.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex items-center justify-between group hover:border-slate-200 transition-all">
+                             <div key={item.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex flex-col md:flex-row md:items-center justify-between group hover:border-slate-200 transition-all gap-4">
                                 <div>
                                     <h4 className="text-lg font-black text-slate-900">{item.title}</h4>
                                     <p className="text-xs text-slate-400 font-bold">{item.date || item.salary || item.category} • {item.location || item.company || item.source}</p>
                                 </div>
-                                <button onClick={() => deleteItem(item.id, contentTab === 'events' ? 'event' : contentTab === 'jobs' ? 'job' : 'news')} className="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all"><Trash2 size={18}/></button>
+                                <button onClick={() => deleteItem(item.id, contentTab === 'events' ? 'event' : contentTab === 'jobs' ? 'job' : 'news')} className="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all self-end md:self-auto"><Trash2 size={18}/></button>
                              </div>
                         ))}
                     </div>
@@ -946,8 +969,8 @@ const AdminDashboard = ({
 
             {/* MODALS */}
             {showUserModal && (
-                <div className="fixed inset-0 z-[2000] bg-black/60 backdrop-blur-md flex items-center justify-center p-8 animate-in fade-in">
-                    <div className="bg-white w-full max-w-md rounded-[3rem] p-10 animate-in zoom-in-95 space-y-6">
+                <div className="fixed inset-0 z-[2000] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 md:p-8 animate-in fade-in">
+                    <div className="bg-white w-full max-w-md rounded-[2rem] md:rounded-[3rem] p-8 md:p-10 animate-in zoom-in-95 space-y-6">
                         <h3 className="text-2xl font-black uppercase">Add New {userTab}</h3>
                         <input placeholder="Full Name" className="w-full p-4 bg-slate-50 rounded-2xl font-bold text-sm" onChange={e => setNewUser({...newUser, name: e.target.value})} />
                         <input placeholder="Email" className="w-full p-4 bg-slate-50 rounded-2xl font-bold text-sm" onChange={e => setNewUser({...newUser, email: e.target.value})} />
@@ -961,8 +984,8 @@ const AdminDashboard = ({
             )}
 
              {showBuildingModal && (
-                <div className="fixed inset-0 z-[2000] bg-black/60 backdrop-blur-md flex items-center justify-center p-8 animate-in fade-in">
-                    <div className="bg-white w-full max-w-4xl rounded-[3rem] p-10 animate-in zoom-in-95 space-y-8 max-h-[90vh] overflow-y-auto custom-scrollbar">
+                <div className="fixed inset-0 z-[2000] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 md:p-8 animate-in fade-in">
+                    <div className="bg-white w-full max-w-4xl rounded-[2rem] md:rounded-[3rem] p-8 md:p-10 animate-in zoom-in-95 space-y-8 max-h-[90vh] overflow-y-auto custom-scrollbar">
                         <div className="flex justify-between items-center">
                             <h3 className="text-2xl font-black uppercase">{editingBuilding ? 'Edit' : 'Add'} Building</h3>
                             <button onClick={() => setShowBuildingModal(false)} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200"><X size={20}/></button>
@@ -983,7 +1006,7 @@ const AdminDashboard = ({
                             <div className="space-y-4">
                                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Building Location</label>
                                 <div 
-                                    className="relative w-full h-80 bg-slate-200 rounded-[2rem] overflow-hidden cursor-crosshair group shadow-inner border-2 border-slate-100 hover:border-blue-400 transition-all"
+                                    className="relative w-full h-64 md:h-80 bg-slate-200 rounded-[2rem] overflow-hidden cursor-crosshair group shadow-inner border-2 border-slate-100 hover:border-blue-400 transition-all"
                                     onClick={(e) => {
                                         const rect = e.currentTarget.getBoundingClientRect();
                                         const x = ((e.clientX - rect.left) / rect.width) * 100;
@@ -1030,7 +1053,7 @@ const Sidebar = ({ activeTab, setActiveTab, user, onLogout, logo, theme }: any) 
         { id: 'admin-dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
       ];
     }
-    // Shared Student/Faculty Items, slightly modified
+    // Shared Student/Faculty Items
     const common = [
         { id: 'dashboard', label: 'Overview', icon: <LayoutDashboard size={20} /> },
         { id: 'navigation', label: 'Campus Map', icon: <MapIcon size={20} /> },
@@ -1045,24 +1068,25 @@ const Sidebar = ({ activeTab, setActiveTab, user, onLogout, logo, theme }: any) 
 
   return (
     <>
-      <button onClick={() => setMobileOpen(!mobileOpen)} className={`md:hidden fixed top-8 left-8 z-[1000] p-5 bg-white rounded-[1.5rem] shadow-2xl text-${theme}-600 border border-slate-100 active:scale-95 transition-all`}>
-        {mobileOpen ? <X size={28} /> : <LayoutDashboard size={28} />}
+      {mobileOpen && <div className="fixed inset-0 bg-black/50 z-[990] md:hidden" onClick={() => setMobileOpen(false)} />}
+      <button onClick={() => setMobileOpen(!mobileOpen)} className={`md:hidden fixed top-6 left-6 z-[1000] p-4 bg-white rounded-[1.5rem] shadow-2xl text-${theme}-600 border border-slate-100 active:scale-95 transition-all`}>
+        {mobileOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
 
-      <aside className={`fixed top-0 left-0 h-screen w-72 bg-white border-r border-slate-100 z-[900] flex flex-col p-10 transition-transform duration-500 md:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex items-center gap-5 mb-16">
+      <aside className={`fixed top-0 left-0 h-screen w-72 bg-white border-r border-slate-100 z-[995] flex flex-col p-8 md:p-10 transition-transform duration-500 md:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="flex items-center gap-5 mb-12 md:mb-16 mt-16 md:mt-0">
           <div className="w-12 h-12 bg-white rounded-[1.2rem] flex items-center justify-center shadow-xl border border-slate-100 overflow-hidden">
             {logo.length > 5 ? <img src={logo} className="w-full h-full object-contain p-1" /> : <span className={`text-${theme}-600 font-black text-2xl`}>{logo}</span>}
           </div>
-          <span className="text-2xl font-black uppercase tracking-tighter text-slate-900 leading-none">Unistone</span>
+          <span className="text-xl md:text-2xl font-black uppercase tracking-tighter text-slate-900 leading-none">Unistone</span>
         </div>
 
-        <nav className="flex-1 space-y-3 overflow-y-auto no-scrollbar">
+        <nav className="flex-1 space-y-2 md:space-y-3 overflow-y-auto no-scrollbar">
           {navItems.map((item) => (
             <button
               key={item.id}
               onClick={() => { setActiveTab(item.id); setMobileOpen(false); }}
-              className={`w-full flex items-center gap-5 px-8 py-5 rounded-[1.8rem] font-black text-[11px] uppercase tracking-widest transition-all group ${activeTab === item.id ? `bg-${theme}-600 text-white shadow-2xl shadow-${theme}-500/20` : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
+              className={`w-full flex items-center gap-5 px-6 md:px-8 py-4 md:py-5 rounded-[1.8rem] font-black text-[10px] md:text-[11px] uppercase tracking-widest transition-all group ${activeTab === item.id ? `bg-${theme}-600 text-white shadow-2xl shadow-${theme}-500/20` : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
             >
               <div className={`${activeTab === item.id ? 'text-white' : `text-slate-300 group-hover:text-${theme}-500`}`}>{item.icon}</div>
               <span className="truncate">{item.label}</span>
@@ -1070,17 +1094,17 @@ const Sidebar = ({ activeTab, setActiveTab, user, onLogout, logo, theme }: any) 
           ))}
         </nav>
 
-        <div className="pt-10 border-t border-slate-50 space-y-8">
+        <div className="pt-8 md:pt-10 border-t border-slate-50 space-y-6 md:space-y-8">
           <div className="flex items-center gap-5 px-3">
-            <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 shrink-0 shadow-inner overflow-hidden">
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 shrink-0 shadow-inner overflow-hidden">
                {user.image ? <img src={user.image} className="w-full h-full object-cover" /> : <UserIcon size={24} />}
             </div>
             <div className="overflow-hidden">
-               <p className="text-[11px] font-black uppercase tracking-tighter truncate text-slate-900 leading-none">{user.name}</p>
-               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-2 italic opacity-60">{user.role}</p>
+               <p className="text-[10px] md:text-[11px] font-black uppercase tracking-tighter truncate text-slate-900 leading-none">{user.name}</p>
+               <p className="text-[8px] md:text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-2 italic opacity-60">{user.role}</p>
             </div>
           </div>
-          <button onClick={onLogout} className="w-full flex items-center gap-5 px-8 py-5 rounded-[1.8rem] font-black text-[11px] uppercase tracking-widest text-red-400 hover:bg-red-50 transition-all shrink-0">
+          <button onClick={onLogout} className="w-full flex items-center gap-5 px-6 md:px-8 py-4 md:py-5 rounded-[1.8rem] font-black text-[10px] md:text-[11px] uppercase tracking-widest text-red-400 hover:bg-red-50 transition-all shrink-0">
             <LogOut size={22} /> Log Out
           </button>
         </div>
@@ -1196,20 +1220,20 @@ export function App() {
     // --- Faculty Specific Dashboard ---
     if (activeTab === 'dashboard' && user.role === UserRole.FACULTY) {
         return (
-            <div className="space-y-16 animate-in fade-in duration-500 pb-20">
-               <header className="flex justify-between items-end">
+            <div className="space-y-12 md:space-y-16 animate-in fade-in duration-500 pb-20">
+               <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                   <div>
-                     <h2 className="text-6xl font-black uppercase tracking-tighter leading-none">Faculty <span className={`text-${theme}-600`}>Portal</span></h2>
-                     <p className="text-slate-500 font-medium italic mt-5 text-xl tracking-tight leading-relaxed max-w-xl">Welcome, {user.name}.</p>
+                     <h2 className="text-4xl md:text-6xl font-black uppercase tracking-tighter leading-none">Faculty <span className={`text-${theme}-600`}>Portal</span></h2>
+                     <p className="text-slate-500 font-medium italic mt-3 md:mt-5 text-lg md:text-xl tracking-tight leading-relaxed max-w-xl">Welcome, {user.name}.</p>
                   </div>
-                  <div className="flex gap-4">
-                     <div className="px-8 py-5 bg-white rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-2xl transition-all"><Users2 className="text-blue-500" fill="currentColor" size={32}/><div className="leading-none"><p className="text-2xl font-black">{studentList.length}</p><p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mt-1">Students</p></div></div>
-                     <div className="px-8 py-5 bg-white rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-2xl transition-all"><Book className={`text-${theme}-500`} fill="currentColor" size={32}/><div className="leading-none"><p className="text-2xl font-black">{courses.length}</p><p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mt-1">Courses</p></div></div>
+                  <div className="flex gap-4 overflow-x-auto pb-2">
+                     <div className="px-6 py-4 md:px-8 md:py-5 bg-white rounded-[2rem] md:rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-2xl transition-all shrink-0"><Users2 className="text-blue-500" fill="currentColor" size={28}/><div className="leading-none"><p className="text-xl md:text-2xl font-black">{studentList.length}</p><p className="text-[8px] md:text-[9px] font-black uppercase text-slate-400 tracking-widest mt-1">Students</p></div></div>
+                     <div className="px-6 py-4 md:px-8 md:py-5 bg-white rounded-[2rem] md:rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-2xl transition-all shrink-0"><Book className={`text-${theme}-500`} fill="currentColor" size={28}/><div className="leading-none"><p className="text-xl md:text-2xl font-black">{courses.length}</p><p className="text-[8px] md:text-[9px] font-black uppercase text-slate-400 tracking-widest mt-1">Courses</p></div></div>
                   </div>
                </header>
 
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                   <div className="bg-slate-900 text-white p-8 rounded-[3rem] shadow-2xl relative overflow-hidden group cursor-pointer hover:scale-[1.02] transition-all">
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+                   <div className="bg-slate-900 text-white p-8 rounded-[3rem] shadow-2xl relative overflow-hidden group cursor-pointer hover:scale-[1.02] transition-all min-h-[250px] flex flex-col justify-center">
                        <div className="absolute top-0 right-0 p-32 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
                        <div className="relative z-10">
                            <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center mb-6"><Plus size={24}/></div>
@@ -1224,11 +1248,11 @@ export function App() {
                         </div>
                         <div className="space-y-4">
                             <div className="flex gap-4 items-center">
-                                <div className="text-xs font-black text-slate-400">09:00</div>
+                                <div className="text-xs font-black text-slate-400 w-12">09:00</div>
                                 <div className="flex-1 p-3 bg-slate-50 rounded-xl text-xs font-bold text-slate-700">CS101 - Lecture Hall A</div>
                             </div>
                             <div className="flex gap-4 items-center">
-                                <div className="text-xs font-black text-slate-400">11:30</div>
+                                <div className="text-xs font-black text-slate-400 w-12">11:30</div>
                                 <div className="flex-1 p-3 bg-slate-50 rounded-xl text-xs font-bold text-slate-700">Office Hours - B Block</div>
                             </div>
                         </div>
@@ -1249,22 +1273,22 @@ export function App() {
     // --- Student Dashboard ---
     if (activeTab === 'dashboard') {
         return (
-            <div className="space-y-16 animate-in fade-in duration-500 pb-20">
-               <header className="flex justify-between items-end">
+            <div className="space-y-12 md:space-y-16 animate-in fade-in duration-500 pb-20">
+               <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                   <div>
-                     <h2 className="text-6xl font-black uppercase tracking-tighter leading-none">Student <span className={`text-${theme}-600`}>Feed</span></h2>
-                     <p className="text-slate-500 font-medium italic mt-5 text-xl tracking-tight leading-relaxed max-w-xl">Welcome back, {user.name}.</p>
+                     <h2 className="text-4xl md:text-6xl font-black uppercase tracking-tighter leading-none">Student <span className={`text-${theme}-600`}>Feed</span></h2>
+                     <p className="text-slate-500 font-medium italic mt-3 md:mt-5 text-lg md:text-xl tracking-tight leading-relaxed max-w-xl">Welcome back, {user.name}.</p>
                   </div>
-                  <div className="flex gap-4">
-                     <div className="px-8 py-5 bg-white rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-2xl transition-all"><Flame className="text-orange-500" fill="currentColor" size={32}/><p className="text-2xl font-black leading-none">{user.streak}</p></div>
-                     <div className="px-8 py-5 bg-white rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-2xl transition-all"><Award className={`text-${theme}-500`} fill="currentColor" size={32}/><p className="text-2xl font-black leading-none">{user.xp}</p></div>
-                     <div className="px-8 py-5 bg-white rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-2xl transition-all"><ScanFace className="text-emerald-500" size={32}/><div className="leading-none"><p className="text-2xl font-black">{user.attendance}%</p><p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mt-1">Attn</p></div></div>
+                  <div className="flex gap-4 overflow-x-auto pb-2">
+                     <div className="px-6 py-4 md:px-8 md:py-5 bg-white rounded-[2rem] md:rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-2xl transition-all shrink-0"><Flame className="text-orange-500" fill="currentColor" size={28}/><p className="text-xl md:text-2xl font-black leading-none">{user.streak}</p></div>
+                     <div className="px-6 py-4 md:px-8 md:py-5 bg-white rounded-[2rem] md:rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-2xl transition-all shrink-0"><Award className={`text-${theme}-500`} fill="currentColor" size={28}/><p className="text-xl md:text-2xl font-black leading-none">{user.xp}</p></div>
+                     <div className="px-6 py-4 md:px-8 md:py-5 bg-white rounded-[2rem] md:rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-2xl transition-all shrink-0"><ScanFace className="text-emerald-500" size={32}/><div className="leading-none"><p className="text-xl md:text-2xl font-black">{user.attendance}%</p><p className="text-[8px] md:text-[9px] font-black uppercase text-slate-400 tracking-widest mt-1">Attn</p></div></div>
                   </div>
                </header>
 
                {/* Dynamic Events from Admin */}
                <div className="space-y-6">
-                    <h3 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">Upcoming Events</h3>
+                    <h3 className="text-xl md:text-2xl font-black uppercase tracking-tight flex items-center gap-3">Upcoming Events</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {events.slice(0,3).map((e: CampusEvent) => (
                              <div key={e.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 group hover:shadow-xl transition-all">
@@ -1281,14 +1305,14 @@ export function App() {
 
                {/* Dynamic Tech News from Admin */}
                <div className="space-y-6">
-                    <h3 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">Recent News</h3>
+                    <h3 className="text-xl md:text-2xl font-black uppercase tracking-tight flex items-center gap-3">Recent News</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {newsList.slice(0,2).map((n: NewsArticle) => (
-                            <div key={n.id} onClick={() => setActiveTab('technews')} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex gap-4 cursor-pointer hover:border-slate-300 transition-all">
-                                <img src={n.image} className="w-24 h-24 rounded-2xl object-cover" />
+                            <div key={n.id} onClick={() => setActiveTab('technews')} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex gap-4 cursor-pointer hover:border-slate-300 transition-all items-center">
+                                <img src={n.image} className="w-20 h-20 md:w-24 md:h-24 rounded-2xl object-cover shrink-0" />
                                 <div>
                                     <span className="text-[10px] font-black uppercase text-blue-600">{n.category}</span>
-                                    <h4 className="text-lg font-black leading-tight mt-1 mb-2">{n.title}</h4>
+                                    <h4 className="text-base md:text-lg font-black leading-tight mt-1 mb-2 line-clamp-2">{n.title}</h4>
                                     <span className="text-xs text-slate-400 font-bold">Read Article -></span>
                                 </div>
                             </div>
@@ -1300,7 +1324,7 @@ export function App() {
     }
 
     return (
-      <div className="p-32 text-center bg-white rounded-[5rem] border-2 border-dashed border-slate-200 animate-in zoom-in-95 duration-700">
+      <div className="p-32 text-center bg-white rounded-[5rem] border-2 border-dashed border-slate-200 animate-in zoom-in-95 duration-700 hidden md:block">
          <Bot size={80} className={`mx-auto text-${theme}-100 mb-10 animate-pulse`} />
          <h3 className="text-4xl font-black text-slate-900 uppercase tracking-tighter">System Initialization</h3>
          <p className="text-slate-400 font-bold italic mt-4 uppercase tracking-widest text-sm">Loading module: <span className={`text-${theme}-600`}>"{activeTab}"</span></p>
@@ -1314,8 +1338,8 @@ export function App() {
         <div className="min-h-screen gradient-bg">
         {session && <AttendancePopup session={session} onMark={() => setSession(null)} />}
         <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} user={user} onLogout={() => setUser(null)} logo={logo} theme={themeColor} />
-        <main className="md:ml-72 p-6 md:p-14 h-screen flex flex-col overflow-hidden relative">
-            <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 custom-scrollbar no-scrollbar scroll-smooth">{renderContent()}</div>
+        <main className="md:ml-72 p-4 md:p-14 h-screen flex flex-col overflow-hidden relative pt-20 md:pt-14">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-3 custom-scrollbar no-scrollbar scroll-smooth">{renderContent()}</div>
         </main>
         <AIAssistant />
         </div>
@@ -1329,7 +1353,7 @@ const AIAssistant = () => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const theme = useContext(ThemeContext);
-  const messagesEndRef = React.useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -1359,15 +1383,18 @@ const AIAssistant = () => {
   return (
     <>
       {isOpen && (
-        <div className="fixed bottom-32 right-10 w-96 h-[500px] bg-white rounded-[2rem] shadow-2xl border border-slate-100 z-[1000] flex flex-col overflow-hidden animate-in slide-in-from-bottom-10 fade-in duration-300">
-          <div className={`p-6 bg-${theme}-600 text-white flex items-center gap-4`}>
-             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-md">
-                <Bot size={24} />
+        <div className="fixed bottom-0 md:bottom-32 right-0 md:right-10 w-full md:w-96 h-[80vh] md:h-[500px] bg-white md:rounded-[2rem] rounded-t-[2rem] shadow-2xl border-t md:border border-slate-100 z-[1000] flex flex-col overflow-hidden animate-in slide-in-from-bottom-10 fade-in duration-300">
+          <div className={`p-6 bg-${theme}-600 text-white flex items-center justify-between`}>
+             <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-md">
+                    <Bot size={24} />
+                </div>
+                <div>
+                    <h4 className="font-black uppercase tracking-tight text-lg leading-none">Unistone AI</h4>
+                    <p className="text-[10px] font-bold uppercase tracking-widest opacity-80 mt-1">Campus Assistant</p>
+                </div>
              </div>
-             <div>
-                <h4 className="font-black uppercase tracking-tight text-lg leading-none">Unistone AI</h4>
-                <p className="text-[10px] font-bold uppercase tracking-widest opacity-80 mt-1">Campus Assistant</p>
-             </div>
+             <button onClick={() => setIsOpen(false)} className="md:hidden p-2 bg-white/20 rounded-full"><X size={20}/></button>
           </div>
           <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50 custom-scrollbar">
              {messages.length === 0 && (
@@ -1378,7 +1405,7 @@ const AIAssistant = () => {
              )}
              {messages.map((m, i) => (
                <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[80%] p-4 rounded-2xl text-sm font-medium leading-relaxed ${m.role === 'user' ? `bg-${theme}-600 text-white rounded-br-none` : 'bg-white text-slate-700 shadow-sm border border-slate-100 rounded-bl-none'}`}>
+                  <div className={`max-w-[85%] p-4 rounded-2xl text-sm font-medium leading-relaxed ${m.role === 'user' ? `bg-${theme}-600 text-white rounded-br-none` : 'bg-white text-slate-700 shadow-sm border border-slate-100 rounded-bl-none'}`}>
                      {m.text}
                   </div>
                </div>
@@ -1410,8 +1437,8 @@ const AIAssistant = () => {
           </div>
         </div>
       )}
-      <button onClick={() => setIsOpen(!isOpen)} className={`fixed bottom-10 right-10 p-5 bg-slate-900 text-white rounded-[2rem] shadow-2xl hover:scale-110 transition-all z-[1000] border-4 border-white group`}>
-          {isOpen ? <X size={32} /> : <Bot size={32} className="group-hover:animate-bounce"/>}
+      <button onClick={() => setIsOpen(!isOpen)} className={`fixed bottom-6 right-6 md:bottom-10 md:right-10 p-4 md:p-5 bg-slate-900 text-white rounded-[2rem] shadow-2xl hover:scale-110 transition-all z-[1000] border-4 border-white group`}>
+          {isOpen ? <X size={28} /> : <Bot size={28} className="group-hover:animate-bounce"/>}
       </button>
     </>
   );
