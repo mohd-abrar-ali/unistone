@@ -50,6 +50,7 @@ const AuthView = ({ onLogin, logo, studentList, facultyList }: { onLogin: (user:
     const formData = new FormData(e.target as HTMLFormElement);
     const email = formData.get('email') as string;
     
+    // Admin Check
     const isAdmin = email.toLowerCase() === 'admin@unistone.edu';
     const finalRole = isAdmin ? UserRole.ADMIN : role;
 
@@ -116,8 +117,14 @@ const AuthView = ({ onLogin, logo, studentList, facultyList }: { onLogin: (user:
             <h1 className="text-5xl font-black tracking-tighter mb-4 uppercase">UNISTONE</h1>
             <p className={`text-${theme}-100 text-lg font-medium leading-relaxed opacity-90 tracking-tight`}>Your Complete Digital Campus Ecosystem</p>
           </div>
-          <div className="p-5 bg-white/10 rounded-[1.5rem] backdrop-blur-md border border-white/20 text-[10px] font-black uppercase tracking-widest text-center">
-             Secure Campus Portal
+          <div className="space-y-4">
+             <div className="p-5 bg-white/10 rounded-[1.5rem] backdrop-blur-md border border-white/20">
+                <p className="text-[10px] font-black uppercase tracking-widest text-white/80 mb-2">Admin Access</p>
+                <p className="text-xs font-bold text-white">Use: admin@unistone.edu</p>
+             </div>
+             <div className="p-5 bg-white/10 rounded-[1.5rem] backdrop-blur-md border border-white/20 text-[10px] font-black uppercase tracking-widest text-center">
+                Secure Campus Portal
+             </div>
           </div>
         </div>
         <div className="md:w-1/2 p-12 flex flex-col justify-center bg-white relative">
@@ -157,6 +164,8 @@ const AuthView = ({ onLogin, logo, studentList, facultyList }: { onLogin: (user:
     </div>
   );
 };
+
+// ... [Keep ConnectHub, TechNewsHub, AcademicHub, ProfileView, MapView, AdminDashboard components as they were in previous version] ...
 
 // --- Module: Tech News Hub ---
 const TechNewsHub = ({ newsList }: { newsList: NewsArticle[] }) => {
@@ -248,7 +257,6 @@ const TechNewsHub = ({ newsList }: { newsList: NewsArticle[] }) => {
     );
 };
 
-// --- Module: Academic Hub (Courses) ---
 const AcademicHub = ({ courses }: { courses: Course[] }) => {
     const theme = useContext(ThemeContext);
     
@@ -304,7 +312,6 @@ const AcademicHub = ({ courses }: { courses: Course[] }) => {
     );
 };
 
-// --- Module: Connect Hub ---
 const ConnectHub = ({ facultyList, studentList }: any) => {
   const [tab, setTab] = useState<'faculty' | 'community'>('faculty');
   const [search, setSearch] = useState('');
@@ -397,7 +404,6 @@ const ConnectHub = ({ facultyList, studentList }: any) => {
   );
 };
 
-// --- Module: Profile View (Editable & Synced) ---
 const ProfileView = ({ user, setUser, updateGlobalUser }: { user: User, setUser: any, updateGlobalUser: (u: User) => void }) => {
   const [editing, setEditing] = useState(false);
   const [formData, setFormData] = useState<User>({ ...user });
@@ -550,7 +556,6 @@ const ProfileView = ({ user, setUser, updateGlobalUser }: { user: User, setUser:
   );
 };
 
-// --- Sub-Module: Map View (Editable by Admin) ---
 const MapView = ({ buildings, onUpdateBuilding }: { buildings: CampusBuilding[], onUpdateBuilding?: (b: CampusBuilding) => void }) => {
   const [selected, setSelected] = useState<any>(null);
   const theme = useContext(ThemeContext);
@@ -624,7 +629,6 @@ const MapView = ({ buildings, onUpdateBuilding }: { buildings: CampusBuilding[],
   );
 };
 
-// --- Admin Dashboard (Synced) ---
 const AdminDashboard = ({ 
   studentList, setStudentList, 
   facultyList, setFacultyList, 
@@ -1189,13 +1193,66 @@ export function App() {
     if (activeTab === 'technews') return <TechNewsHub newsList={newsList} />;
     if (activeTab === 'academic') return <AcademicHub courses={courses} />;
 
-    // Student/Faculty Dashboard
+    // --- Faculty Specific Dashboard ---
+    if (activeTab === 'dashboard' && user.role === UserRole.FACULTY) {
+        return (
+            <div className="space-y-16 animate-in fade-in duration-500 pb-20">
+               <header className="flex justify-between items-end">
+                  <div>
+                     <h2 className="text-6xl font-black uppercase tracking-tighter leading-none">Faculty <span className={`text-${theme}-600`}>Portal</span></h2>
+                     <p className="text-slate-500 font-medium italic mt-5 text-xl tracking-tight leading-relaxed max-w-xl">Welcome, {user.name}.</p>
+                  </div>
+                  <div className="flex gap-4">
+                     <div className="px-8 py-5 bg-white rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-2xl transition-all"><Users2 className="text-blue-500" fill="currentColor" size={32}/><div className="leading-none"><p className="text-2xl font-black">{studentList.length}</p><p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mt-1">Students</p></div></div>
+                     <div className="px-8 py-5 bg-white rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-2xl transition-all"><Book className={`text-${theme}-500`} fill="currentColor" size={32}/><div className="leading-none"><p className="text-2xl font-black">{courses.length}</p><p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mt-1">Courses</p></div></div>
+                  </div>
+               </header>
+
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                   <div className="bg-slate-900 text-white p-8 rounded-[3rem] shadow-2xl relative overflow-hidden group cursor-pointer hover:scale-[1.02] transition-all">
+                       <div className="absolute top-0 right-0 p-32 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+                       <div className="relative z-10">
+                           <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center mb-6"><Plus size={24}/></div>
+                           <h3 className="text-2xl font-black uppercase leading-none mb-2">Create Class</h3>
+                           <p className="text-white/60 text-xs font-bold uppercase tracking-widest">Schedule a new lecture</p>
+                       </div>
+                   </div>
+                   <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden group cursor-pointer hover:border-slate-300 transition-all">
+                        <div className="flex justify-between items-start mb-8">
+                            <h3 className="text-2xl font-black uppercase leading-none text-slate-900">Today's<br/>Schedule</h3>
+                            <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center"><Calendar size={20} className="text-slate-400"/></div>
+                        </div>
+                        <div className="space-y-4">
+                            <div className="flex gap-4 items-center">
+                                <div className="text-xs font-black text-slate-400">09:00</div>
+                                <div className="flex-1 p-3 bg-slate-50 rounded-xl text-xs font-bold text-slate-700">CS101 - Lecture Hall A</div>
+                            </div>
+                            <div className="flex gap-4 items-center">
+                                <div className="text-xs font-black text-slate-400">11:30</div>
+                                <div className="flex-1 p-3 bg-slate-50 rounded-xl text-xs font-bold text-slate-700">Office Hours - B Block</div>
+                            </div>
+                        </div>
+                   </div>
+                   <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden group cursor-pointer hover:border-slate-300 transition-all">
+                        <div className="flex justify-between items-start mb-8">
+                            <h3 className="text-2xl font-black uppercase leading-none text-slate-900">Pending<br/>Reviews</h3>
+                            <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center"><AlertCircle size={20} className="text-orange-500"/></div>
+                        </div>
+                        <p className="text-4xl font-black text-slate-900 mb-2">3</p>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Assignments to grade</p>
+                   </div>
+               </div>
+            </div>
+        );
+    }
+
+    // --- Student Dashboard ---
     if (activeTab === 'dashboard') {
         return (
             <div className="space-y-16 animate-in fade-in duration-500 pb-20">
                <header className="flex justify-between items-end">
                   <div>
-                     <h2 className="text-6xl font-black uppercase tracking-tighter leading-none">{user.role} <span className={`text-${theme}-600`}>Feed</span></h2>
+                     <h2 className="text-6xl font-black uppercase tracking-tighter leading-none">Student <span className={`text-${theme}-600`}>Feed</span></h2>
                      <p className="text-slate-500 font-medium italic mt-5 text-xl tracking-tight leading-relaxed max-w-xl">Welcome back, {user.name}.</p>
                   </div>
                   <div className="flex gap-4">
